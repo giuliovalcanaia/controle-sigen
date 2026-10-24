@@ -63,6 +63,7 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 
 ## Deploy
 
-- Bind em `127.0.0.1`; acesso via `tailscale serve` (HTTPS). Nunca `tailscale funnel`.
+- Bind em `127.0.0.1` no host; acesso via `tailscale serve` (HTTPS). Nunca `tailscale funnel`.
+- No container Docker, a API escuta em `0.0.0.0`; o Compose publica a porta somente em `127.0.0.1` do host. Não troque o bind do host para `0.0.0.0`.
 - Docker Compose monta `./data` e, opcionalmente, `./.auth` somente leitura.
 - `poppler-utils` precisa existir na imagem de runtime (já incluído no Dockerfile).

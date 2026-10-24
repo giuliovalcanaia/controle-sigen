@@ -104,7 +104,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-- O container escuta em `127.0.0.1:3000`.
+- Dentro do container a API escuta em `0.0.0.0:3000`; o Compose publica a porta apenas em `127.0.0.1:3000` do host.
 - `data/` guarda o SQLite; `.auth/` é montado somente leitura quando você usa a sessão salva.
 - A imagem oficial do Playwright já inclui o Chromium; `poppler-utils` é instalado no runtime.
 

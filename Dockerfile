@@ -25,8 +25,11 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends poppler-utils \
   && rm -rf /var/lib/apt/lists/*
 
+# Dentro do container precisa escutar em 0.0.0.0 para o port mapping do
+# Docker alcançar a API. A exposição externa continua restrita: o Compose
+# publica a porta apenas em 127.0.0.1 do host.
 ENV NODE_ENV=production \
-    HOST=127.0.0.1 \
+    HOST=0.0.0.0 \
     PORT=3000 \
     DATABASE_PATH=/app/data/sigen.db
 

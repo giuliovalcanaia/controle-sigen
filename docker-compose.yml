@@ -4,7 +4,9 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      HOST: 127.0.0.1
+      # 0.0.0.0 dentro do container; a porta publicada abaixo fica só no
+      # loopback do host, e o acesso externo é feito pelo Tailscale Serve.
+      HOST: 0.0.0.0
       PORT: 3000
       TZ: America/Sao_Paulo
       DATABASE_PATH: /app/data/sigen.db
