@@ -22,7 +22,8 @@ type Message =
   | { id: number; role: "assistant"; kind: "inventory"; inventory: Inventory }
   | { id: number; role: "assistant"; kind: "error"; code: string; text: string };
 
-const LIST_RE = /animais|rebanho|listar|lista|mostrar|ver|meus|quantos|cabe[cç]as|bois|vacas|gado/i;
+const LIST_RE =
+  /animais|rebanho|listar|lista|mostrar|ver|meus|quantos|cabe[cç]as|bois|vacas|gado|bovin/i;
 
 let nextId = 1;
 const uid = () => nextId++;
