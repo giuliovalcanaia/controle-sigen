@@ -65,6 +65,9 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 
 ## Deploy
 
+- Servidor de produção: `desktop-home` (`archlinux`, `100.117.79.72`, `desktop-home.tailb33a32.ts.net`), Docker Compose em `~/controle-sigen`.
+- Atualizar: `rsync -a --delete` excluindo `node_modules dist data .auth .env fixtures/private '*.pdf'`, depois `docker compose up -d --build` por SSH.
+- O `.env` existe apenas no servidor (`600`); nunca o envie para o repositório.
 - Bind em `127.0.0.1` no host; acesso via `tailscale serve` (HTTPS). Nunca `tailscale funnel`.
 - No container Docker, a API escuta em `0.0.0.0`; o Compose publica a porta somente em `127.0.0.1` do host. Não troque o bind do host para `0.0.0.0`.
 - Docker Compose monta `./data` e, opcionalmente, `./.auth` somente leitura.

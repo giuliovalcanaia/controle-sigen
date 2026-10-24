@@ -126,6 +126,24 @@ docker compose up -d --build
 - `data/` guarda o SQLite; `.auth/` é montado somente leitura quando você usa a sessão salva.
 - A imagem oficial do Playwright já inclui o Chromium; `poppler-utils` é instalado no runtime.
 
+### Servidor de produção
+
+O sistema roda no `desktop-home` (`archlinux`, `100.117.79.72`, `desktop-home.tailb33a32.ts.net`) via Docker Compose.
+
+Atualizar o código a partir da máquina de desenvolvimento:
+
+```bash
+rsync -a --delete \
+  --exclude node_modules --exclude dist --exclude dev-dist \
+  --exclude data --exclude .auth --exclude .env \
+  --exclude fixtures/private --exclude '*.pdf' \
+  ./ giulio@100.117.79.72:~/controle-sigen/
+
+ssh giulio@100.117.79.72 'cd ~/controle-sigen && docker compose up -d --build'
+```
+
+O `.env` fica **somente no servidor**, com permissão `600`. O `data/` (apelidos) nunca é sobrescrito pelo `rsync`.
+
 ### Tailscale
 
 No servidor:
@@ -135,7 +153,9 @@ sudo tailscale serve --bg https / http://127.0.0.1:3000
 tailscale serve status
 ```
 
-No celular, instale o Tailscale, entre na mesma tailnet e abra `https://<máquina>.<tailnet>.ts.net`. Instale o app pelo menu do navegador (“Adicionar à tela inicial”).
+No celular, instale o Tailscale, entre na mesma tailnet e abra `https://desktop-home.tailb33a32.ts.net`. Instale o app pelo menu do navegador (“Adicionar à tela inicial”).
+
+Com `sudo tailscale set --operator=$USER`, o `serve` passa a ser configurado sem `sudo` (use `tailscale serve --bg https / http://127.0.0.1:3000`).
 
 > Não use `tailscale funnel`: ele publicaria o sistema na internet. O `serve` mantém o acesso restrito à tailnet.
 >
