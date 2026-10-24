@@ -1,0 +1,64 @@
+import type { ApiErrorBody, Inventory, SigenStatus } from "./types";
+
+export class ApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(code: string, message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 90_000);
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...init?.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
+      throw new ApiError(
+        body.code ?? "ERRO",
+        body.message ?? "Não foi possível concluir a operação.",
+        response.status,
+      );
+    }
+
+    return (await response.json()) as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("TEMPO_ESGOTADO", "O SIGEN demorou demais para responder.", 504);
+    }
+    throw new ApiError(
+      "SEM_CONEXAO",
+      "Não consegui falar com o servidor. Verifique a VPN ou se o servidor está ligado.",
+      0,
+    );
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+export const api = {
+  getInventory: () => request<Inventory>("/api/animals"),
+  getStatus: () => request<{ sigen: SigenStatus }>("/api/status"),
+  setNickname: (animalKey: string, apelido: string) =>
+    request<{ ok: true; apelido: string | null }>(
+      `/api/nicknames/${encodeURIComponent(animalKey)}`,
+      { method: "PUT", body: JSON.stringify({ apelido }) },
+    ),
+  logout: () => request<{ ok: true }>("/api/session/logout", { method: "POST" }),
+};

@@ -1,0 +1,22 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# credenciais e sessão
+.env
+.env.*
+!.env.example
+.auth/
+
+# dados locais
+data/
+
+# PDFs e capturas com dados pessoais — nunca versionar
+fixtures/private/
+*.pdf
+
+# artefatos de dev
+apps/web/dev-dist/
+.vite/
+.DS_Store

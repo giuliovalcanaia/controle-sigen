@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 127.0.0.1
+      PORT: 3000
+      TZ: America/Sao_Paulo
+      DATABASE_PATH: /app/data/sigen.db
+    volumes:
+      - ./data:/app/data
+      # Sessão salva por `npm run sigen:login`. Remova se usar usuário/senha no .env.
+      - ./.auth:/app/.auth:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    shm_size: "1gb"
+    init: true

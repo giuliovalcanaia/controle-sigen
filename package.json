@@ -1,0 +1,30 @@
+{
+  "name": "controle-sigen",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Leitura simplificada do inventário bovino do SIGEN+ para o produtor rural",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @sigen/api\" \"npm run dev -w @sigen/web\"",
+    "dev:api": "npm run dev -w @sigen/api",
+    "dev:web": "npm run dev -w @sigen/web",
+    "build": "npm run build -w @sigen/api && npm run build -w @sigen/web",
+    "start": "npm run start -w @sigen/api",
+    "test": "npm run test -w @sigen/api",
+    "typecheck": "npm run typecheck -w @sigen/api && npm run typecheck -w @sigen/web",
+    "sigen:login": "npm run sigen:login -w @sigen/api",
+    "sigen:check": "npm run sigen:check -w @sigen/api"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.3": true,
+    "esbuild@0.28.2": true
+  }
+}

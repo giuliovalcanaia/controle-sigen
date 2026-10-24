@@ -1,0 +1,15 @@
+node_modules
+**/dist
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.auth
+data
+fixtures/private
+*.pdf
+coverage
+*.log
+README.md
+AGENTS.md

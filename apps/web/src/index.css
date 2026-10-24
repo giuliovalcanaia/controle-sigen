@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --color-cream-50: #fbf9f3;
+  --color-cream-100: #f4f1e8;
+  --color-cream-200: #e9e3d3;
+  --color-forest-700: #166534;
+  --color-forest-800: #14532d;
+  --color-forest-900: #0f3d22;
+  --color-bark-700: #4a3b2a;
+  --color-bark-500: #7a6a56;
+}
+
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(220, 252, 231, 0.7), transparent 38%),
+    radial-gradient(circle at 90% 12%, rgba(254, 243, 199, 0.55), transparent 42%),
+    var(--color-cream-100);
+  color: var(--color-bark-700);
+  font-family: var(--font-sans);
+  font-size: 17px;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: #bbf7d0;
+  color: #14532d;
+}
+
+.safe-bottom {
+  padding-bottom: max(0.85rem, env(safe-area-inset-bottom));
+}
+
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-enter {
+  animation: rise 220ms ease-out both;
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.pulse-soft {
+  animation: pulse-soft 1.4s ease-in-out infinite;
+}

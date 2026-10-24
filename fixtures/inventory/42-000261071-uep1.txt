@@ -1,0 +1,50 @@
+                                                                        Estado de Santa Catarina
+                                                                        Secretaria de Estado da Agricultura                                                                                              Página 1/1
+                                                                        Companhia Integrada de Desenvolvimento Agrícola de Santa Catarina                                                       24/10/2026 16:51:43
+
+                                                                                                                      INVENTÁRIO DE ANIMAIS
+
+
+
+
+SIGEN+ Sistema de Gestão da Defesa Agropecuária Catarinense
+                                                              Nome Unidade Exploração: NOME
+                                                              Código Oficial: 42-000261071                                 Nº UEP: 1
+                                                              Proprietário titular do imóvel: NOME            CPF/CNPJ: 00000000000
+                                                              Tel. Residencial: (00) 00000-0000                             Tel. Celular: (00) 00000-0000
+                                                              Responsável: NOME                               CPF/CNPJ: 00000000000
+                                                              Local: Propriedade                                           Tipo Endereço: Estrada
+                                                              Endereço: ENDERECO                                Nº: Não Informado
+                                                              CEP: 00000000                                                Localidade: Ribeirão Rigo - Doutor Pedrinho - SC
+                                                              Local de Leitura do GPS: Sede                                Altitude: Não Informado
+                                                              Latitude: 00,000000
+                                                              Espécie: BOVINO
+
+
+                                                              Produtores
+                                                              Nome: NOME                 CPF/CNPJ: 00000000000          Tel. Residencial: (00) 00000-0000         Tel. Celular: (00) 00000-0000
+                                                              Nome: NOME                       CPF/CNPJ: 00000000000          Tel. Residencial: (00) 00000-0000        Tel. Celular: (00) 00000-0000
+
+                                                              Estratificação
+                                                                                                                                                                  Idade
+                                                                      Nº Brinco                     Nº Manejo                         Sexo                                                 Data de Nascimento
+                                                                                                                                                             Anos      Meses
+                                                                   076000000233768                    233768                          Fêmea                     4              0                 24/10/2022
+
+                                                                   105420194634044                    463404                          Fêmea                     9              4                 01/06/2017
+
+                                                                   076000005531288                    531288                          Fêmea                     0             10                 21/12/2025
+
+
+
+                                                              Total Geral
+                                                                    0 a 12 meses            13 a 24 meses             25 a 36 meses         acima de 36 meses                 Total                Qtde. Animais
+                                                               M           F            M           F             M           F            M         F              M            F
+                                                                         0          1            0            0            0           0           0          2                0            3                         3
+
+
+
+                                                              O cadastro de animais mantido pela CIDASC prioriza questões de defesa sanitária animal e não tem o condão de identificar o legítimo possuidor ou
+                                                              proprietário, mas sim os responsáveis sanitários pelos animais junto ao serviço veterinário oficial. A Guia de Trânsito Animal - GTA é utilizada para
+                                                              fins de rastreabilidade dos semoventes, não possuindo valor de transação comercial.
+
