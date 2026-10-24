@@ -136,6 +136,7 @@ No celular, instale o Tailscale, entre na mesma tailnet e abra `https://<máquin
 - Os PDFs do SIGEN contêm CPF, telefones, endereço e GPS. Eles ficam em `fixtures/private/`, que é gitignored.
 - As fixtures versionadas em `fixtures/inventory/` são extrações em texto com esses campos substituídos.
 - A senha do SIGEN nunca vai para o navegador do produtor; fica no servidor (`.env` ou secret do Docker) ou apenas na sessão salva localmente.
+- Proteja o `.env` com `chmod 600 .env`. Evite rodar `docker compose config` em logs/chats: ele imprime o conteúdo do `.env`, incluindo a senha.
 - O app não é oficial. A consulta é apenas de leitura.
 
 ## Estrutura

@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { chromium, type APIResponse, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { SigenError, type SigenStatus } from "./types.js";
 
 export type SigenSessionConfig = {
@@ -25,12 +25,6 @@ class Mutex {
 const UEP_LIST_PATH =
   "/DSA.Cadastros/UnidadeExploracao/VerificarPermissaoImprimirInventarioHome";
 const LOGOUT_PATH = "/Account/LogOut";
-
-function isLoginResponse(response: APIResponse): boolean {
-  if (response.status() >= 300 && response.status() < 400) return true;
-  const contentType = response.headers()["content-type"] ?? "";
-  return contentType.includes("text/html");
-}
 
 /**
  * Mantém uma única sessão do SIGEN.

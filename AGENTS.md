@@ -15,6 +15,8 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 - Interface sem SIGEN: `SIGEN_MOCK=1 npm run dev`
 - Login manual (abre Chromium visível): `npm run sigen:login`
 - Verificação ponta a ponta: `npm run sigen:check`
+- Diagnóstico da resposta de UEPs (sem PII): `npm run sigen:inspect -w @sigen/api`
+- A sessão manual fica em `.auth/state.json` (gitignored); a API a usa quando `SIGEN_STORAGE_STATE` aponta para ela.
 - npm 12 bloqueia scripts de instalação. Se adicionar dependência com `postinstall`, aprove com `npm install-scripts approve <pkg>`; o `allowScripts` do `package.json` registra as exceções.
 
 ## Arquitetura
