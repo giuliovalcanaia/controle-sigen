@@ -133,6 +133,18 @@ O sistema roda no `desktop-home` (`archlinux`, `100.117.79.72`, `desktop-home.ta
 Atualizar o código a partir da máquina de desenvolvimento:
 
 ```bash
+npm run deploy
+```
+
+O script `scripts/deploy.sh` envia o código com `rsync` e roda `docker compose up -d --build` por SSH. Para usar outro destino:
+
+```bash
+SIGEN_DEPLOY_HOST=giulio@100.117.79.72 npm run deploy
+```
+
+Equivalente manual:
+
+```bash
 rsync -a --delete \
   --exclude node_modules --exclude dist --exclude dev-dist \
   --exclude data --exclude .auth --exclude .env \
@@ -146,16 +158,18 @@ O `.env` fica **somente no servidor**, com permissão `600`. O `data/` (apelidos
 
 ### Tailscale
 
-No servidor:
+No servidor (Tailscale 1.104+):
 
 ```bash
-sudo tailscale serve --bg https / http://127.0.0.1:3000
+tailscale serve --bg 3000
 tailscale serve status
 ```
 
+Em versões mais antigas do CLI: `sudo tailscale serve --bg https / http://127.0.0.1:3000`.
+
 No celular, instale o Tailscale, entre na mesma tailnet e abra `https://desktop-home.tailb33a32.ts.net`. Instale o app pelo menu do navegador (“Adicionar à tela inicial”).
 
-Com `sudo tailscale set --operator=$USER`, o `serve` passa a ser configurado sem `sudo` (use `tailscale serve --bg https / http://127.0.0.1:3000`).
+Com `sudo tailscale set --operator=$USER`, o `serve` passa a ser configurado sem `sudo` (use `tailscale serve --bg 3000`).
 
 > Não use `tailscale funnel`: ele publicaria o sistema na internet. O `serve` mantém o acesso restrito à tailnet.
 >
