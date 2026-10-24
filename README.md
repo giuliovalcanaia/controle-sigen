@@ -79,6 +79,24 @@ npm run dev
 - API: http://127.0.0.1:3000
 - O Vite faz proxy de `/api` para a API.
 
+### Abrir no celular durante o desenvolvimento
+
+A API pode continuar em `127.0.0.1`: quem fala com o celular é o Vite, e o proxy dele encaminha `/api` para a API.
+
+```bash
+# recomendado: só na tailnet, usando o IP do Tailscale
+npm run dev:tailscale
+# no celular: http://<tailscale ip -4>:5173
+
+# alternativa: todas as interfaces (expõe na LAN também)
+npm run dev:lan
+# no celular: http://<IP-da-máquina>:5173
+```
+
+Use `npm run dev:lan` somente em rede confiável. O servidor de desenvolvimento do Vite não tem autenticação.
+
+Para testar **PWA instalável/HTTPS** no celular, use o build de produção com `tailscale serve` na 443; o service worker não é registrado no modo dev.
+
 ### Testes
 
 ```bash

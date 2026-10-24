@@ -6,6 +6,8 @@
 npm install                 # npm workspaces; NÃO use pnpm/yarn
 npx playwright install chromium
 npm run dev                 # API :3000 + PWA :5173 (Vite faz proxy de /api)
+npm run dev:tailscale       # Vite no IP do Tailscale; API continua em 127.0.0.1
+npm run dev:lan             # Vite em 0.0.0.0 (expõe na LAN; use só em rede confiável)
 npm test                    # Vitest da API
 npm run typecheck
 npm run build && npm start  # produção: Fastify serve o PWA e a API

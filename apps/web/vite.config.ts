@@ -53,6 +53,8 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 5173,
+    // Permite abrir o dev server pelo MagicDNS do Tailscale, se usado.
+    allowedHosts: [".ts.net"],
     proxy: {
       "/api": {
         target: "http://127.0.0.1:3000",
