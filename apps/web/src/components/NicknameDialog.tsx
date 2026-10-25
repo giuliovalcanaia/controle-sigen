@@ -65,7 +65,7 @@ export function NicknameDialog({ animal, onClose, onSave, onRemovePhoto }: Props
       ref={dialogRef}
       onCancel={(event) => {
         event.preventDefault();
-        if (!saving) onClose();
+        if (!busy) onClose();
       }}
       className="m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border border-cream-200 bg-cream-50 p-0 text-bark-700 shadow-2xl backdrop:bg-black/40 backdrop:backdrop-blur-[2px]"
       aria-labelledby="nickname-title"
@@ -84,7 +84,7 @@ export function NicknameDialog({ animal, onClose, onSave, onRemovePhoto }: Props
         <header className="flex items-start justify-between gap-3 px-5 pt-5">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-forest-700">
-              Apelido do animal
+              Editar animal
             </p>
             <h2 id="nickname-title" className="mt-0.5 text-2xl font-black">
               {animal ? `Brinco ${animal.brinco}` : ""}
