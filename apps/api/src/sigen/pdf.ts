@@ -180,6 +180,7 @@ export function parseInventoryText(rawText: string): ParsedInventory {
       idade: { anos: Number(anos), meses: Number(meses) },
       nascimento,
       apelido: null,
+      fotoVersao: null,
     });
   }
 

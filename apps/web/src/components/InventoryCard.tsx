@@ -1,15 +1,23 @@
-import { Beef, Pencil, RefreshCw } from "lucide-react";
+import { Pencil, RefreshCw } from "lucide-react";
 import type { Animal, Inventory } from "../types";
 import { formatAge, formatTime } from "../utils";
+import { AnimalAvatar } from "./AnimalAvatar";
 
 type Props = {
   inventory: Inventory;
   onEdit: (animal: Animal) => void;
+  onPhoto: (animal: Animal) => void;
   onRefresh: () => void;
   refreshing: boolean;
 };
 
-export function InventoryCard({ inventory, onEdit, onRefresh, refreshing }: Props) {
+export function InventoryCard({
+  inventory,
+  onEdit,
+  onPhoto,
+  onRefresh,
+  refreshing,
+}: Props) {
   const propriedadesComAnimais = inventory.propriedades.filter(
     (property) => property.animais.length > 0,
   ).length;
@@ -77,7 +85,12 @@ export function InventoryCard({ inventory, onEdit, onRefresh, refreshing }: Prop
             ) : (
               <ul className="space-y-2">
                 {property.animais.map((animal) => (
-                  <AnimalRow key={animal.key} animal={animal} onEdit={() => onEdit(animal)} />
+                  <AnimalRow
+                    key={animal.key}
+                    animal={animal}
+                    onPhoto={() => onPhoto(animal)}
+                    onEdit={() => onEdit(animal)}
+                  />
                 ))}
               </ul>
             )}
@@ -92,18 +105,20 @@ export function InventoryCard({ inventory, onEdit, onRefresh, refreshing }: Prop
   );
 }
 
-function AnimalRow({ animal, onEdit }: { animal: Animal; onEdit: () => void }) {
+function AnimalRow({
+  animal,
+  onPhoto,
+  onEdit,
+}: {
+  animal: Animal;
+  onPhoto: () => void;
+  onEdit: () => void;
+}) {
   const nome = animal.apelido?.trim();
-  const inicial = (nome || animal.brinco).slice(0, 1).toUpperCase();
 
   return (
     <li className="flex items-center gap-3 rounded-2xl border border-transparent bg-white/70 px-3 py-2.5 transition hover:border-cream-200">
-      <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-forest-700/10 text-sm font-black text-forest-800"
-        aria-hidden="true"
-      >
-        {nome ? inicial : <Beef className="h-5 w-5" />}
-      </div>
+      <AnimalAvatar animal={animal} onOpen={onPhoto} />
       <div className="min-w-0 flex-1">
         <p className={`truncate font-extrabold ${nome ? "text-bark-700" : "text-bark-500"}`}>
           {nome || "Sem apelido"}

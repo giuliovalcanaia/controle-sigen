@@ -60,5 +60,18 @@ export const api = {
       `/api/nicknames/${encodeURIComponent(animalKey)}`,
       { method: "PUT", body: JSON.stringify({ apelido }) },
     ),
+  setPhoto: (animalKey: string, foto: Blob) =>
+    request<{ ok: true; fotoVersao: number }>(
+      `/api/photos/${encodeURIComponent(animalKey)}`,
+      {
+        method: "PUT",
+        body: foto,
+        headers: { "Content-Type": "image/jpeg" },
+      },
+    ),
+  removePhoto: (animalKey: string) =>
+    request<{ ok: true }>(`/api/photos/${encodeURIComponent(animalKey)}`, {
+      method: "DELETE",
+    }),
   logout: () => request<{ ok: true }>("/api/session/logout", { method: "POST" }),
 };

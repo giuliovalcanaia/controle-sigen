@@ -8,6 +8,8 @@ export type Animal = {
   idade: { anos: number; meses: number };
   nascimento: string;
   apelido: string | null;
+  /** Versão da foto guardada no servidor; null quando não há foto. */
+  fotoVersao: number | null;
 };
 
 export type PropertyInventory = {

@@ -27,7 +27,8 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 - `apps/api/src/sigen/client.ts` — após o login, usa `context.request` contra endpoints internos do SIGEN. Não navegue pela UI para ler dados.
 - `apps/api/src/sigen/pdf.ts` — `pdftotext -layout` + parser do relatório. Depende de `poppler-utils`.
 - `apps/api/src/sigen/uep.ts` — descobre IDs de UEP varrendo o JSON, sem depender de caminho fixo.
-- `apps/api/src/db.ts` — SQLite (`better-sqlite3`) apenas com apelidos.
+- `apps/api/src/db.ts` — SQLite (`better-sqlite3`) com apelidos e a versão das fotos.
+- `apps/api/src/photos.ts` — arquivos das fotos em `data/fotos/<brinco oficial>.jpg`.
 - `apps/web/` — PWA React/Vite/Tailwind; chat com uma única ação.
 
 ## Invariantes que não podem quebrar
@@ -40,6 +41,7 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 6. **Sem cache de animais.** Toda consulta baixa PDFs novos. O SIGEN é a fonte da verdade.
 7. **Uma sessão por processo.** Não crie outro `BrowserContext`/Playwright em paralelo; o SIGEN derruba a sessão anterior.
 8. **20 minutos de ociosidade**, não tempo total. Toda requisição reinicia o relógio. `SIGEN_IDLE_MINUTES` altera.
+9. **Foto é dado local**, não do SIGEN. Fica em `data/fotos` com a chave oficial, fora do git e da imagem Docker. Nunca envie foto ao SIGEN.
 
 ## Domínio
 
@@ -59,6 +61,8 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 
 - O número em destaque é o manejo; o oficial só aparece em detalhes (se aparecer).
 - Animais com apelido vêm primeiro, em ordem alfabética; os demais por brinco.
+- O círculo ao lado do nome é o botão da foto: toque abre o diálogo com ver em tela cheia, trocar e remover. Sem foto, mostra a inicial (ou o ícone de boi quando não há apelido).
+- A redução para 512×512 acontece no navegador (`src/photo.ts`); nunca suba o original.
 - Textos em português simples, botões grandes, uma ação principal.
 - O service worker cacheia apenas a casca do PWA. Nunca cacheie `/api/*`.
 - O composer usa `100dvh` e `env(safe-area-inset-bottom)`; teste no viewport de 390 px.
@@ -66,7 +70,8 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 ## Deploy
 
 - Servidor de produção: `desktop-home` (`archlinux`, `100.117.79.72`, `desktop-home.tailb33a32.ts.net`), Docker Compose em `~/controle-sigen`.
-- Atualizar: `npm run deploy` (rsync + `docker compose up -d --build`); o script está em `scripts/deploy.sh`.
+- Atualizar: `npm run deploy` (`git archive` + `rsync` + `docker compose up -d --build`); o script está em `scripts/deploy.sh`.
+- O deploy envia **somente arquivos commitados**. Pastas não versionadas (estudos, capturas) nunca vão para o servidor.
 - `tailscale serve --bg 3000` publica em HTTPS na tailnet (CLI 1.104+). Nunca use `tailscale funnel`.
 - O `.env` existe apenas no servidor (`600`); nunca o envie para o repositório.
 - Bind em `127.0.0.1` no host; acesso via `tailscale serve` (HTTPS). Nunca `tailscale funnel`.

@@ -32,6 +32,7 @@ describe("parseInventoryText", () => {
       idade: { anos: 0, meses: 8 },
       nascimento: "17/02/2026",
       apelido: null,
+      fotoVersao: null,
     });
   });
 

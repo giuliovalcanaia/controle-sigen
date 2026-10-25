@@ -60,16 +60,18 @@ export function groupInventories(parsed: ParsedInventory[]): Inventory {
   };
 }
 
-/** Aplica os apelidos do SQLite sobre o inventário vindo do SIGEN. */
-export function mergeNicknames(
+/** Aplica os apelidos e as fotos locais sobre o inventário vindo do SIGEN. */
+export function mergeExtras(
   inventory: Inventory,
   nicknames: Map<string, string>,
+  photoVersions: Map<string, number> = new Map(),
 ): Inventory {
   const properties = inventory.propriedades.map((property) => ({
     ...property,
     animais: property.animais.map((animal) => ({
       ...animal,
       apelido: nicknames.get(animal.key) ?? null,
+      fotoVersao: photoVersions.get(animal.key) ?? null,
     })),
   }));
 
