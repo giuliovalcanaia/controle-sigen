@@ -70,7 +70,8 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 ## Deploy
 
 - Servidor de produção: `desktop-home` (`archlinux`, `100.117.79.72`, `desktop-home.tailb33a32.ts.net`), Docker Compose em `~/controle-sigen`.
-- Atualizar: `npm run deploy` (rsync + `docker compose up -d --build`); o script está em `scripts/deploy.sh`.
+- Atualizar: `npm run deploy` (`git archive` + `rsync` + `docker compose up -d --build`); o script está em `scripts/deploy.sh`.
+- O deploy envia **somente arquivos commitados**. Pastas não versionadas (estudos, capturas) nunca vão para o servidor.
 - `tailscale serve --bg 3000` publica em HTTPS na tailnet (CLI 1.104+). Nunca use `tailscale funnel`.
 - O `.env` existe apenas no servidor (`600`); nunca o envie para o repositório.
 - Bind em `127.0.0.1` no host; acesso via `tailscale serve` (HTTPS). Nunca `tailscale funnel`.

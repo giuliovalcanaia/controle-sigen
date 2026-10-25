@@ -144,20 +144,24 @@ Atualizar o código a partir da máquina de desenvolvimento:
 npm run deploy
 ```
 
-O script `scripts/deploy.sh` envia o código com `rsync` e roda `docker compose up -d --build` por SSH. Para usar outro destino:
+O script `scripts/deploy.sh` exporta **apenas o que está commitado** (`git archive`), sincroniza com `rsync` e roda `docker compose up -d --build` por SSH. Pastas de estudo e arquivos não versionados nunca vão para o servidor.
 
 ```bash
-SIGEN_DEPLOY_HOST=giulio@100.117.79.72 npm run deploy
+SIGEN_DEPLOY_HOST=giulio@100.117.79.72 npm run deploy   # outro destino
+SIGEN_DEPLOY_REF=master npm run deploy                  # outro commit/branch
 ```
 
-Equivalente manual:
+Se o branch atual não for `master`, o script avisa antes de publicar. Equivalente manual:
 
 ```bash
+tmp=$(mktemp -d)
+git archive --format=tar HEAD | tar -xf - -C "$tmp"
 rsync -a --delete \
-  --exclude node_modules --exclude dist --exclude dev-dist \
+  --exclude node_modules --exclude .git \
   --exclude data --exclude .auth --exclude .env \
   --exclude fixtures/private --exclude '*.pdf' \
-  ./ giulio@100.117.79.72:~/controle-sigen/
+  "$tmp/" giulio@100.117.79.72:~/controle-sigen/
+rm -rf "$tmp"
 
 ssh giulio@100.117.79.72 'cd ~/controle-sigen && docker compose up -d --build'
 ```
