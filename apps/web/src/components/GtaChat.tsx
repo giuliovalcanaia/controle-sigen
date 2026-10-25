@@ -38,7 +38,6 @@ type Phase =
   | "animais"
   | "cpf"
   | "uep"
-  | "finalidade"
   | "datas"
   | "notaFiscal"
   | "placa"
@@ -184,7 +183,7 @@ export function GtaChat({
   const [dataValidade, setDataValidade] = useState("");
   const [transporte, setTransporte] = useState(GTA_TRANSPORTE_PADRAO);
   const [editingField, setEditingField] = useState<
-    "saida" | "validade" | "transporte" | null
+    "finalidade" | "saida" | "validade" | "transporte" | null
   >(null);
   const [notaFiscal, setNotaFiscal] = useState("");
   const [placa, setPlaca] = useState("");
@@ -455,24 +454,17 @@ export function GtaChat({
 
     setDestino({ tipo: "terceiro", cpf, uep });
     appendUser(`${uep.localidade} · ${uep.codigoOficial} · UEP ${uep.uep}.`);
-    appendAssistant("Qual a finalidade da GTA?");
-    setPhase("finalidade");
-  }
-
-  function continueFinalidade() {
-    if (!finalidade) return;
-    appendUser(`Finalidade: ${finalidade}.`);
-    appendAssistant("Confira a saída, a validade e o transporte.");
+    appendAssistant("Confira os dados da GTA.");
     setPhase("datas");
   }
 
   function continueDatas() {
-    if (!saidaValida || !validadeValida || !transporte) return;
+    if (!finalidade || !saidaValida || !validadeValida || !transporte) return;
 
     appendUser(
-      `Saída: ${formatIsoBr(dataSaida)} · Validade: ${formatIsoBr(
-        dataValidade,
-      )} · Transporte: ${transporte}.`,
+      `Finalidade: ${finalidade} · Saída: ${formatIsoBr(
+        dataSaida,
+      )} · Validade: ${formatIsoBr(dataValidade)} · Transporte: ${transporte}.`,
     );
     appendAssistant("Qual o número da nota fiscal?");
     setPhase("notaFiscal");
@@ -543,19 +535,14 @@ export function GtaChat({
         setDestino(null);
         setLookupError("");
         break;
-      case "finalidade":
+      case "datas":
         appendUser("Voltar.");
         appendAssistant("Qual UEP vai receber os animais?");
         setPhase("uep");
         break;
-      case "datas":
-        appendUser("Voltar.");
-        appendAssistant("Qual a finalidade da GTA?");
-        setPhase("finalidade");
-        break;
       case "notaFiscal":
         appendUser("Voltar.");
-        appendAssistant("Confira a saída, a validade e o transporte.");
+        appendAssistant("Confira os dados da GTA.");
         setPhase("datas");
         break;
       case "placa":
@@ -689,10 +676,8 @@ export function GtaChat({
         return "Destino";
       case "uep":
         return "UEP de destino";
-      case "finalidade":
-        return "Finalidade";
       case "datas":
-        return "Datas e transporte";
+        return "Finalidade e datas";
       case "notaFiscal":
         return "Nota fiscal";
       case "placa":
@@ -962,44 +947,37 @@ export function GtaChat({
               </div>
             )}
 
-            {phase === "finalidade" && (
-              <div>
-                <label className="block">
-                  <span className="text-sm font-bold">Finalidade</span>
-                  <select
-                    value={finalidade}
-                    onChange={(event) => setFinalidade(event.target.value)}
-                    className="mt-1 w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
-                  >
-                    {options?.finalidades.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <button
-                  type="button"
-                  onClick={continueFinalidade}
-                  disabled={!finalidade}
-                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white disabled:opacity-50"
-                >
-                  Continuar
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-
-                <StepLinks onBack={goBack} onCancel={cancel} />
-              </div>
-            )}
-
             {phase === "datas" && (
               <div>
                 <p className="text-sm text-bark-500">
-                  Deixei a sugestão pronta. Toque em um item para alterar.
+                  Deixei o padrão pronto. Toque em um item para alterar.
                 </p>
 
                 <div className="mt-3 divide-y divide-cream-200 rounded-2xl border border-cream-200 bg-white/80">
+                  <DataRow
+                    label="Finalidade"
+                    value={finalidade || "Escolher"}
+                    open={editingField === "finalidade"}
+                    onToggle={() =>
+                      setEditingField(
+                        editingField === "finalidade" ? null : "finalidade",
+                      )
+                    }
+                  >
+                    <select
+                      value={finalidade}
+                      onChange={(event) => setFinalidade(event.target.value)}
+                      aria-label="Finalidade da GTA"
+                      className="w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
+                    >
+                      {options?.finalidades.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </DataRow>
+
                   <DataRow
                     label="Saída"
                     value={
@@ -1110,7 +1088,9 @@ export function GtaChat({
                 <button
                   type="button"
                   onClick={continueDatas}
-                  disabled={!saidaValida || !validadeValida || !transporte}
+                  disabled={
+                    !finalidade || !saidaValida || !validadeValida || !transporte
+                  }
                   className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white disabled:opacity-50"
                 >
                   Continuar
