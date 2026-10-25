@@ -25,6 +25,8 @@ import {
   GTA_VALIDADE_DIAS,
   gtaStageText,
   maskDocumento,
+  originKeyForSelection,
+  type GtaOriginUnit,
 } from "../gta";
 import type { GtaDestinoUep, GtaJobView, GtaOptions, Inventory } from "../types";
 import { formatAge } from "../utils";
@@ -135,20 +137,26 @@ export function GtaChat({
   const cancelled = useRef(false);
   const historyId = useRef(2);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const originUnits = useMemo(() => buildOriginUnits(inventory), [inventory]);
-  const [originKey, setOriginKey] = useState<string | null>(
-    originUnits[0]?.key ?? null,
-  );
-  const origin =
-    originUnits.find((unit) => unit.key === originKey) ??
-    originUnits[0] ??
-    null;
-  const animals = origin?.animals ?? [];
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const selectedAnimals = animals.filter((animal) => selected.has(animal.key));
-  const allSelected =
-    animals.length > 0 && animals.every((animal) => selected.has(animal.key));
+
+  const selectedAnimals = useMemo(
+    () =>
+      originUnits
+        .flatMap((unit) => unit.animals)
+        .filter((animal) => selected.has(animal.key)),
+    [originUnits, selected],
+  );
+
+  // A GTA tem uma única origem: o primeiro animal marcado define a
+  // propriedade/UEP, e o resto da lista fica travado nela.
+  const originKey = useMemo(
+    () => originKeyForSelection(originUnits, selected),
+    [originUnits, selected],
+  );
+  const origin = originUnits.find((unit) => unit.key === originKey) ?? null;
 
   const [history, setHistory] = useState<ChatEntry[]>([
     {
@@ -358,6 +366,11 @@ export function GtaChat({
   }, [jobId, phase, onBusyChange]);
 
   useEffect(() => {
+    if (phase === "animais") {
+      cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [history.length, phase]);
 
@@ -372,12 +385,9 @@ export function GtaChat({
       dataValidade <= addDaysIso(dataSaida, GTA_MAX_DIAS_VALIDADE),
   );
 
-  function chooseOrigin(key: string) {
-    setOriginKey(key);
-    setSelected(new Set());
-  }
+  function toggleAnimal(unitKey: string, key: string) {
+    if (originKey && unitKey !== originKey) return;
 
-  function toggleAnimal(key: string) {
     setSelected((previous) => {
       const next = new Set(previous);
       if (next.has(key)) next.delete(key);
@@ -386,11 +396,31 @@ export function GtaChat({
     });
   }
 
-  function toggleAll() {
-    if (!origin) return;
-    setSelected(
-      allSelected ? new Set() : new Set(origin.animals.map((animal) => animal.key)),
+  function groupSelected(unit: GtaOriginUnit): boolean {
+    return (
+      unit.animals.length > 0 &&
+      unit.animals.every((animal) => selected.has(animal.key))
     );
+  }
+
+  function toggleGroup(unit: GtaOriginUnit) {
+    if (originKey && unit.key !== originKey) return;
+
+    setSelected((previous) => {
+      const next = new Set(previous);
+      const every = unit.animals.every((animal) => next.has(animal.key));
+
+      for (const animal of unit.animals) {
+        if (every) next.delete(animal.key);
+        else next.add(animal.key);
+      }
+
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
   }
 
   function continueAnimals() {
@@ -656,7 +686,11 @@ export function GtaChat({
     resultStatus === "erro" && !resultIncertain && Boolean(origin && destino);
 
   return (
-    <div className="space-y-3">
+    <div
+      ref={cardRef}
+      className="scroll-mt-20 space-y-3"
+      data-gta-message
+    >
       {history.map((entry) =>
         entry.role === "user" ? (
           <UserBubble key={entry.id}>{entry.text}</UserBubble>
@@ -683,76 +717,90 @@ export function GtaChat({
                   </p>
                 ) : (
                   <>
-                    <div className="flex gap-2 overflow-x-auto pb-1">
+                    <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl bg-cream-100 px-3 py-2">
+                      <p className="min-w-0 text-xs font-semibold leading-snug text-bark-700">
+                        {origin
+                          ? `Origem: ${origin.property.localidade} · UEP ${origin.uep}`
+                          : "Marque os animais que vão sair."}
+                      </p>
+                      {origin && (
+                        <button
+                          type="button"
+                          onClick={clearSelection}
+                          className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-forest-800 shadow-sm"
+                        >
+                          Trocar
+                        </button>
+                      )}
+                    </div>
+
+                    <div>
                       {originUnits.map((unit) => {
-                        const active = unit.key === origin?.key;
+                        const blocked = Boolean(
+                          originKey && unit.key !== originKey,
+                        );
+                        const every = groupSelected(unit);
+
                         return (
-                          <button
+                          <section
                             key={unit.key}
-                            type="button"
-                            onClick={() => chooseOrigin(unit.key)}
-                            aria-pressed={active}
-                            className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-bold transition ${
-                              active
-                                ? "border-forest-700 bg-forest-700 text-white"
-                                : "border-cream-200 bg-white text-forest-800"
-                            }`}
+                            aria-disabled={blocked}
+                            className={blocked ? "opacity-45" : ""}
                           >
-                            <span className="max-w-[9rem] truncate">
-                              {unit.property.localidade} · UEP {unit.uep}
-                            </span>
-                            <span
-                              className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-                                active ? "bg-white/20" : "bg-forest-700/10"
-                              }`}
-                            >
-                              {unit.animals.length}
-                            </span>
-                          </button>
+                            <div className="flex items-center justify-between gap-2 pb-1.5 pt-2">
+                              <p className="min-w-0 truncate text-[11px] font-bold uppercase tracking-[0.08em] text-forest-800">
+                                {unit.property.localidade} · UEP {unit.uep}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => toggleGroup(unit)}
+                                disabled={blocked}
+                                className="shrink-0 rounded-full px-2 py-1 text-[11px] font-bold text-forest-700 transition hover:bg-forest-700/10 disabled:opacity-50"
+                              >
+                                {every ? "Limpar" : "Todos"}
+                              </button>
+                            </div>
+
+                            <ul className="space-y-2">
+                              {unit.animals.map((animal) => (
+                                <li key={animal.key}>
+                                  <label
+                                    className={`flex items-center gap-3 rounded-2xl border border-cream-200 bg-white/80 px-3 py-2.5 transition ${
+                                      blocked
+                                        ? "cursor-not-allowed"
+                                        : "cursor-pointer hover:border-forest-700/20"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={selected.has(animal.key)}
+                                      onChange={() =>
+                                        toggleAnimal(unit.key, animal.key)
+                                      }
+                                      disabled={blocked}
+                                      className="h-5 w-5 shrink-0 accent-forest-700"
+                                    />
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate font-extrabold">
+                                        {animal.apelido?.trim() ||
+                                          "Sem apelido"}
+                                      </span>
+                                      <span className="block text-sm text-bark-500">
+                                        Brinco {animal.brinco} · {animal.sexo} ·{" "}
+                                        {formatAge(animal.idade)}
+                                      </span>
+                                    </span>
+                                  </label>
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
                         );
                       })}
                     </div>
 
-                    <div className="mt-3 flex items-center justify-between gap-3">
-                      <p className="text-[11px] text-bark-500">
-                        Mesma propriedade/UEP.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={toggleAll}
-                        className="shrink-0 rounded-full border border-cream-200 bg-white px-3 py-1.5 text-xs font-bold text-forest-800"
-                      >
-                        {allSelected ? "Limpar" : "Selecionar todos"}
-                      </button>
-                    </div>
-
-                    <ul className="mt-2 max-h-[46dvh] space-y-2 overflow-y-auto overscroll-contain pr-1">
-                      {animals.map((animal) => (
-                        <li key={animal.key}>
-                          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cream-200 bg-white/80 px-3 py-2.5 transition hover:border-forest-700/20">
-                            <input
-                              type="checkbox"
-                              checked={selected.has(animal.key)}
-                              onChange={() => toggleAnimal(animal.key)}
-                              className="h-5 w-5 shrink-0 accent-forest-700"
-                            />
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate font-extrabold">
-                                {animal.apelido?.trim() || "Sem apelido"}
-                              </span>
-                              <span className="block text-sm text-bark-500">
-                                Brinco {animal.brinco} · {animal.sexo} ·{" "}
-                                {formatAge(animal.idade)}
-                              </span>
-                            </span>
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-
                     <p className="mt-2 text-xs text-bark-500">
-                      {origin?.property.codigo} · {origin?.property.municipio}/
-                      {origin?.property.uf}
+                      Uma GTA só leva animais de uma propriedade e UEP.
                     </p>
 
                     {optionsBusy && (

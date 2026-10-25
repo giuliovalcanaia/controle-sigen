@@ -9,6 +9,7 @@ import {
   gtaStageText,
   gtaStatusText,
   maskDocumento,
+  originKeyForSelection,
   propertyUep,
 } from "./gta";
 import type { Animal, GtaJobView, Inventory, PropertyInventory } from "./types";
@@ -199,6 +200,32 @@ describe("GTA no cliente", () => {
       "702664",
     ]);
     expect(units[1]?.animals.map((item) => item.brinco)).toEqual(["685501"]);
+  });
+
+  it("trava a origem no primeiro animal marcado", () => {
+    const inventory: Inventory = {
+      buscadoEm: "2026-10-25T10:00:00.000Z",
+      total: property.animais.length,
+      avisos: [],
+      propriedades: [property],
+    };
+    const units = buildOriginUnits(inventory);
+    const [uep1, uep2] = units;
+
+    expect(originKeyForSelection(units, new Set())).toBeNull();
+    expect(
+      originKeyForSelection(units, new Set([uep2!.animals[0]!.key])),
+    ).toBe(uep2!.key);
+    expect(
+      originKeyForSelection(units, new Set([uep1!.animals[0]!.key])),
+    ).toBe(uep1!.key);
+    // Mesmo com duas origens marcadas, vale a primeira da lista.
+    expect(
+      originKeyForSelection(
+        units,
+        new Set([uep2!.animals[0]!.key, uep1!.animals[0]!.key]),
+      ),
+    ).toBe(uep1!.key);
   });
 
   it("não cria unidade de origem sem animais", () => {

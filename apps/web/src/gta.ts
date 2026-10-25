@@ -62,6 +62,23 @@ export function buildOriginUnits(inventory: Inventory): GtaOriginUnit[] {
   return units;
 }
 
+/**
+ * A GTA tem uma única origem. Devolve a unidade do primeiro animal marcado
+ * (na ordem da lista) ou `null` quando nada está selecionado.
+ */
+export function originKeyForSelection(
+  units: GtaOriginUnit[],
+  selected: Set<string>,
+): string | null {
+  for (const unit of units) {
+    if (unit.animals.some((animal) => selected.has(animal.key))) {
+      return unit.key;
+    }
+  }
+
+  return null;
+}
+
 export function maskDocumento(value: string): string {
   const digits = value.replace(/\D/g, "");
   if (digits.length === 11) return `***.***.***-${digits.slice(-2)}`;

@@ -82,6 +82,7 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 - O círculo ao lado do nome é o botão da foto: toque abre o diálogo com ver em tela cheia, trocar e remover. Sem foto, mostra a inicial (ou o ícone de boi quando não há apelido).
 - A redução para 512×512 acontece no navegador (`src/photo.ts`); nunca suba o original.
 - O botão **Fazer GTA** fica ao lado de **Ver todos os animais**, no composer. O fluxo acontece no chat, sem modal: animais → CPF → UEP → finalidade → saída → validade → transporte → revisão → resultado.
+- A seleção é uma lista única com todos os animais (sem abas), agrupada por propriedade/UEP. O primeiro animal marcado trava a origem; os outros grupos ficam desabilitados até tocar em **Trocar**.
 - O CPF de destino é digitado no campo de mensagem e não entra no histórico: a bolha mostra só a máscara (`***.***.***-01`). O campo fica numérico e é limpo depois.
 - Digitar “GTA” inicia a conversa, mas a emissão só acontece pelo botão/checkbox da revisão. Textos em português simples, botões grandes.
 - Com `GTA_EMISSAO_ATIVA=0`, o botão final é **Conferir no SIGEN** e nada é salvo. Com `1`, a revisão exige o checkbox “Entendi que não pode ser desfeita”.

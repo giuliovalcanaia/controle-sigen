@@ -80,6 +80,17 @@ export default function App() {
       return;
     }
 
+    // A conversa de GTA é alta: alinhamos o topo para o produtor ver a
+    // origem e a lista de animais, e não o fim do cartão.
+    if (last?.kind === "gta") {
+      const cards = document.querySelectorAll("[data-gta-message]");
+      cards[cards.length - 1]?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      return;
+    }
+
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, loading]);
 

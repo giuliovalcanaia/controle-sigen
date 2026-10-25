@@ -42,7 +42,7 @@ O fluxo acontece **dentro do chat**, em etapas:
 
 1. Toque em **Fazer GTA**, ao lado de **Ver todos os animais** (ou digite “GTA”).
 2. O app busca o inventário, se ainda não tiver, e pergunta **quais animais** vão sair.
-3. Escolha a **propriedade/UEP** e marque um ou mais animais da mesma origem.
+3. A lista mostra **todos os animais**, agrupados por propriedade/UEP. Marque um ou mais; o primeiro marcado define a origem (a GTA tem uma só) e **Trocar** limpa a seleção.
 4. Digite o **CPF/CNPJ do destino** no campo de mensagem. Ele é usado só para buscar a propriedade, não fica salvo e aparece mascarado no histórico.
 5. Escolha a **UEP de destino**.
 6. Responda **finalidade** (padrão ENGORDA), **data da saída** (hoje), **validade** (+3 dias) e **transporte** (padrão RODOVIÁRIO).
