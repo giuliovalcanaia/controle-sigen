@@ -20,3 +20,6 @@ fixtures/private/
 apps/web/dev-dist/
 .vite/
 .DS_Store
+
+# capturas do fluxo de GTA (contêm CPF, telefone e endereço)
+Fluxo emitir GTA/
