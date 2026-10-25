@@ -489,30 +489,30 @@ export function GtaChat({
 
   function continueNotaFiscal() {
     const value = notaFiscal.trim();
-    if (!value) return;
+
+    if (!value) {
+      setNotaFiscal("");
+      appendUser("Nota fiscal: em branco.");
+      askPlaca();
+      return;
+    }
 
     appendUser(`Nota fiscal: ${value}.`);
     askPlaca();
   }
 
-  function skipNotaFiscal() {
-    setNotaFiscal("");
-    appendUser("Nota fiscal: em branco.");
-    askPlaca();
-  }
-
   function continuePlaca() {
     const value = placa.trim().toUpperCase();
-    if (!value) return;
+
+    if (!value) {
+      setPlaca("");
+      appendUser("Placa: em branco.");
+      goToReview();
+      return;
+    }
 
     setPlaca(value);
     appendUser(`Placa: ${value}.`);
-    goToReview();
-  }
-
-  function skipPlaca() {
-    setPlaca("");
-    appendUser("Placa: em branco.");
     goToReview();
   }
 
@@ -1140,25 +1140,17 @@ export function GtaChat({
                   />
                 </label>
                 <p className="mt-1 text-xs text-bark-500">
-                  Opcional. Se não tiver nota fiscal, deixe em branco.
+                  Opcional. Se não tiver nota fiscal, toque em Continuar sem
+                  preencher.
                 </p>
 
                 <button
                   type="button"
                   onClick={continueNotaFiscal}
-                  disabled={!notaFiscal.trim()}
-                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white disabled:opacity-50"
+                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white"
                 >
                   Continuar
                   <ChevronRight className="h-5 w-5" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={skipNotaFiscal}
-                  className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-2xl text-sm font-bold text-bark-500 transition hover:bg-cream-200"
-                >
-                  Deixar em branco
                 </button>
 
                 <StepLinks onBack={goBack} onCancel={cancel} />
@@ -1184,25 +1176,17 @@ export function GtaChat({
                   />
                 </label>
                 <p className="mt-1 text-xs text-bark-500">
-                  Opcional. Se não souber a placa agora, deixe em branco.
+                  Opcional. Se não souber a placa, toque em Continuar sem
+                  preencher.
                 </p>
 
                 <button
                   type="button"
                   onClick={continuePlaca}
-                  disabled={!placa.trim()}
-                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white disabled:opacity-50"
+                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white"
                 >
                   Continuar
                   <ChevronRight className="h-5 w-5" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={skipPlaca}
-                  className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-2xl text-sm font-bold text-bark-500 transition hover:bg-cream-200"
-                >
-                  Deixar em branco
                 </button>
 
                 <StepLinks onBack={goBack} onCancel={cancel} />
