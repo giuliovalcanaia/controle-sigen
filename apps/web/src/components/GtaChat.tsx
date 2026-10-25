@@ -40,6 +40,8 @@ type Phase =
   | "dataSaida"
   | "dataValidade"
   | "transporte"
+  | "notaFiscal"
+  | "placa"
   | "revisao"
   | "status"
   | "resultado"
@@ -476,6 +478,45 @@ export function GtaChat({
   function continueTransporte() {
     if (!transporte) return;
     appendUser(`Transporte: ${transporte}.`);
+    appendAssistant("Qual o número da nota fiscal?");
+    setPhase("notaFiscal");
+  }
+
+  function askPlaca() {
+    appendAssistant("Qual a placa do veículo?");
+    setPhase("placa");
+  }
+
+  function continueNotaFiscal() {
+    const value = notaFiscal.trim();
+    if (!value) return;
+
+    appendUser(`Nota fiscal: ${value}.`);
+    askPlaca();
+  }
+
+  function skipNotaFiscal() {
+    setNotaFiscal("");
+    appendUser("Nota fiscal: em branco.");
+    askPlaca();
+  }
+
+  function continuePlaca() {
+    const value = placa.trim().toUpperCase();
+    if (!value) return;
+
+    setPlaca(value);
+    appendUser(`Placa: ${value}.`);
+    goToReview();
+  }
+
+  function skipPlaca() {
+    setPlaca("");
+    appendUser("Placa: em branco.");
+    goToReview();
+  }
+
+  function goToReview() {
     appendAssistant("Confira antes de continuar.");
     setConfirmed(false);
     setPhase("revisao");
@@ -526,10 +567,20 @@ export function GtaChat({
         appendAssistant("Até quando vale a GTA?");
         setPhase("dataValidade");
         break;
-      case "revisao":
+      case "notaFiscal":
         appendUser("Voltar.");
         appendAssistant("Qual o meio de transporte?");
         setPhase("transporte");
+        break;
+      case "placa":
+        appendUser("Voltar.");
+        appendAssistant("Qual o número da nota fiscal?");
+        setPhase("notaFiscal");
+        break;
+      case "revisao":
+        appendUser("Voltar.");
+        appendAssistant("Qual a placa do veículo?");
+        setPhase("placa");
         break;
       default:
         break;
@@ -660,6 +711,10 @@ export function GtaChat({
         return "Validade";
       case "transporte":
         return "Transporte";
+      case "notaFiscal":
+        return "Nota fiscal";
+      case "placa":
+        return "Placa";
       case "revisao":
         return "Revisão";
       case "status":
@@ -1070,6 +1125,90 @@ export function GtaChat({
               </div>
             )}
 
+            {phase === "notaFiscal" && (
+              <div>
+                <label className="block">
+                  <span className="text-sm font-bold">Número da nota fiscal</span>
+                  <input
+                    autoFocus
+                    value={notaFiscal}
+                    onChange={(event) => setNotaFiscal(event.target.value)}
+                    maxLength={30}
+                    placeholder="Ex.: 12345"
+                    aria-label="Número da nota fiscal"
+                    className="mt-1 w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
+                  />
+                </label>
+                <p className="mt-1 text-xs text-bark-500">
+                  Opcional. Se não tiver nota fiscal, deixe em branco.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={continueNotaFiscal}
+                  disabled={!notaFiscal.trim()}
+                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white disabled:opacity-50"
+                >
+                  Continuar
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={skipNotaFiscal}
+                  className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-2xl text-sm font-bold text-bark-500 transition hover:bg-cream-200"
+                >
+                  Deixar em branco
+                </button>
+
+                <StepLinks onBack={goBack} onCancel={cancel} />
+              </div>
+            )}
+
+            {phase === "placa" && (
+              <div>
+                <label className="block">
+                  <span className="text-sm font-bold">Placa do veículo</span>
+                  <input
+                    autoFocus
+                    value={placa}
+                    onChange={(event) =>
+                      setPlaca(event.target.value.toUpperCase())
+                    }
+                    maxLength={10}
+                    placeholder="Ex.: ABC1D23"
+                    aria-label="Placa do veículo"
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    className="mt-1 w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
+                  />
+                </label>
+                <p className="mt-1 text-xs text-bark-500">
+                  Opcional. Se não souber a placa agora, deixe em branco.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={continuePlaca}
+                  disabled={!placa.trim()}
+                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white disabled:opacity-50"
+                >
+                  Continuar
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={skipPlaca}
+                  className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-2xl text-sm font-bold text-bark-500 transition hover:bg-cream-200"
+                >
+                  Deixar em branco
+                </button>
+
+                <StepLinks onBack={goBack} onCancel={cancel} />
+              </div>
+            )}
+
             {phase === "revisao" && origin && destino && options && (
               <div className="space-y-3">
                 <div className="rounded-2xl border border-cream-200 bg-white/80 p-3">
@@ -1128,20 +1267,14 @@ export function GtaChat({
                     </dd>
                     <dt className="text-bark-500">Transporte</dt>
                     <dd className="font-semibold">{transporte}</dd>
-                    {notaFiscal.trim() && (
-                      <>
-                        <dt className="text-bark-500">Nota fiscal</dt>
-                        <dd className="font-semibold">{notaFiscal}</dd>
-                      </>
-                    )}
-                    {placa.trim() && (
-                      <>
-                        <dt className="text-bark-500">Placa</dt>
-                        <dd className="font-semibold">
-                          {placa.toUpperCase()}
-                        </dd>
-                      </>
-                    )}
+                    <dt className="text-bark-500">Nota fiscal</dt>
+                    <dd className="font-semibold">
+                      {notaFiscal.trim() || "Em branco"}
+                    </dd>
+                    <dt className="text-bark-500">Placa</dt>
+                    <dd className="font-semibold">
+                      {placa.trim() ? placa.toUpperCase() : "Em branco"}
+                    </dd>
                     {lacre.trim() && (
                       <>
                         <dt className="text-bark-500">Lacre</dt>
@@ -1159,31 +1292,9 @@ export function GtaChat({
 
                 <details className="rounded-2xl border border-cream-200 bg-white/70 p-3">
                   <summary className="cursor-pointer text-sm font-bold">
-                    Nota fiscal, placa, lacre e observação (opcional)
+                    Lacre e observação (opcional)
                   </summary>
                   <div className="mt-3 space-y-2">
-                    <input
-                      value={notaFiscal}
-                      onChange={(event) => {
-                        setNotaFiscal(event.target.value);
-                        setConfirmed(false);
-                      }}
-                      maxLength={30}
-                      placeholder="Nº da nota fiscal"
-                      aria-label="Número da nota fiscal"
-                      className="w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
-                    />
-                    <input
-                      value={placa}
-                      onChange={(event) => {
-                        setPlaca(event.target.value);
-                        setConfirmed(false);
-                      }}
-                      maxLength={10}
-                      placeholder="Placa do veículo"
-                      aria-label="Placa do veículo"
-                      className="w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base uppercase outline-none focus:border-forest-700/40"
-                    />
                     <input
                       value={lacre}
                       onChange={(event) => {
