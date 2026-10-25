@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   ExternalLink,
   Loader2,
@@ -12,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { ApiError, api } from "../api";
 import {
   addDaysIso,
@@ -37,9 +39,7 @@ type Phase =
   | "cpf"
   | "uep"
   | "finalidade"
-  | "dataSaida"
-  | "dataValidade"
-  | "transporte"
+  | "datas"
   | "notaFiscal"
   | "placa"
   | "revisao"
@@ -183,6 +183,9 @@ export function GtaChat({
   const [dataSaida, setDataSaida] = useState("");
   const [dataValidade, setDataValidade] = useState("");
   const [transporte, setTransporte] = useState(GTA_TRANSPORTE_PADRAO);
+  const [editingField, setEditingField] = useState<
+    "saida" | "validade" | "transporte" | null
+  >(null);
   const [notaFiscal, setNotaFiscal] = useState("");
   const [placa, setPlaca] = useState("");
   const [lacre, setLacre] = useState("");
@@ -252,6 +255,12 @@ export function GtaChat({
   useEffect(() => {
     void loadOptions();
   }, [loadOptions]);
+
+  // Cada vez que o cartão de datas abre, começa fechado: os padrões
+  // aparecem prontos e só se abrem se o produtor tocar em um item.
+  useEffect(() => {
+    if (phase === "datas") setEditingField(null);
+  }, [phase]);
 
   const lookup = useCallback(
     async (digits: string) => {
@@ -453,31 +462,18 @@ export function GtaChat({
   function continueFinalidade() {
     if (!finalidade) return;
     appendUser(`Finalidade: ${finalidade}.`);
-    appendAssistant("Qual a data da saída?");
-    setPhase("dataSaida");
+    appendAssistant("Confira a saída, a validade e o transporte.");
+    setPhase("datas");
   }
 
-  function continueDataSaida() {
-    if (!saidaValida) return;
-    appendUser(`Saída: ${formatIsoBr(dataSaida)}.`);
-    appendAssistant("Até quando vale a GTA?");
+  function continueDatas() {
+    if (!saidaValida || !validadeValida || !transporte) return;
 
-    if (!dataValidade || dataValidade <= dataSaida) {
-      setDataValidade(addDaysIso(dataSaida, GTA_VALIDADE_DIAS));
-    }
-    setPhase("dataValidade");
-  }
-
-  function continueDataValidade() {
-    if (!validadeValida) return;
-    appendUser(`Validade: ${formatIsoBr(dataValidade)}.`);
-    appendAssistant("Qual o meio de transporte?");
-    setPhase("transporte");
-  }
-
-  function continueTransporte() {
-    if (!transporte) return;
-    appendUser(`Transporte: ${transporte}.`);
+    appendUser(
+      `Saída: ${formatIsoBr(dataSaida)} · Validade: ${formatIsoBr(
+        dataValidade,
+      )} · Transporte: ${transporte}.`,
+    );
     appendAssistant("Qual o número da nota fiscal?");
     setPhase("notaFiscal");
   }
@@ -552,25 +548,15 @@ export function GtaChat({
         appendAssistant("Qual UEP vai receber os animais?");
         setPhase("uep");
         break;
-      case "dataSaida":
+      case "datas":
         appendUser("Voltar.");
         appendAssistant("Qual a finalidade da GTA?");
         setPhase("finalidade");
         break;
-      case "dataValidade":
-        appendUser("Voltar.");
-        appendAssistant("Qual a data da saída?");
-        setPhase("dataSaida");
-        break;
-      case "transporte":
-        appendUser("Voltar.");
-        appendAssistant("Até quando vale a GTA?");
-        setPhase("dataValidade");
-        break;
       case "notaFiscal":
         appendUser("Voltar.");
-        appendAssistant("Qual o meio de transporte?");
-        setPhase("transporte");
+        appendAssistant("Confira a saída, a validade e o transporte.");
+        setPhase("datas");
         break;
       case "placa":
         appendUser("Voltar.");
@@ -705,12 +691,8 @@ export function GtaChat({
         return "UEP de destino";
       case "finalidade":
         return "Finalidade";
-      case "dataSaida":
-        return "Data da saída";
-      case "dataValidade":
-        return "Validade";
-      case "transporte":
-        return "Transporte";
+      case "datas":
+        return "Datas e transporte";
       case "notaFiscal":
         return "Nota fiscal";
       case "placa":
@@ -1011,110 +993,124 @@ export function GtaChat({
               </div>
             )}
 
-            {phase === "dataSaida" && (
+            {phase === "datas" && (
               <div>
-                <label className="block">
-                  <span className="text-sm font-bold">Data da saída</span>
-                  <input
-                    type="date"
-                    value={dataSaida}
-                    min={options?.hoje}
-                    max={
-                      options
-                        ? addDaysIso(options.hoje, GTA_MAX_DIAS_VALIDADE)
-                        : undefined
-                    }
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setDataSaida(value);
-                      if (
-                        value &&
-                        (!dataValidade || dataValidade <= value)
-                      ) {
-                        setDataValidade(
-                          addDaysIso(value, GTA_VALIDADE_DIAS),
-                        );
-                      }
-                    }}
-                    className="mt-1 w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
-                  />
-                </label>
-                <p className="mt-1 text-xs text-bark-500">
-                  A validade é calculada a partir desta data.
+                <p className="text-sm text-bark-500">
+                  Deixei a sugestão pronta. Toque em um item para alterar.
                 </p>
 
-                <button
-                  type="button"
-                  onClick={continueDataSaida}
-                  disabled={!saidaValida}
-                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white disabled:opacity-50"
-                >
-                  Continuar
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-
-                <StepLinks onBack={goBack} onCancel={cancel} />
-              </div>
-            )}
-
-            {phase === "dataValidade" && (
-              <div>
-                <label className="block">
-                  <span className="text-sm font-bold">Validade</span>
-                  <input
-                    type="date"
-                    value={dataValidade}
-                    min={dataSaida ? addDaysIso(dataSaida, 1) : undefined}
-                    max={
+                <div className="mt-3 divide-y divide-cream-200 rounded-2xl border border-cream-200 bg-white/80">
+                  <DataRow
+                    label="Saída"
+                    value={
                       dataSaida
-                        ? addDaysIso(dataSaida, GTA_MAX_DIAS_VALIDADE)
-                        : undefined
+                        ? options && dataSaida === options.hoje
+                          ? `Hoje · ${formatIsoBr(dataSaida)}`
+                          : formatIsoBr(dataSaida)
+                        : "Escolher"
                     }
-                    onChange={(event) =>
-                      setDataValidade(event.target.value)
+                    open={editingField === "saida"}
+                    onToggle={() =>
+                      setEditingField(
+                        editingField === "saida" ? null : "saida",
+                      )
                     }
-                    className="mt-1 w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
-                  />
-                </label>
-                <p className="mt-1 text-xs text-bark-500">
-                  A validade precisa ser depois da saída.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={continueDataValidade}
-                  disabled={!validadeValida}
-                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white disabled:opacity-50"
-                >
-                  Continuar
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-
-                <StepLinks onBack={goBack} onCancel={cancel} />
-              </div>
-            )}
-
-            {phase === "transporte" && (
-              <div>
-                <label className="block">
-                  <span className="text-sm font-bold">Meio de transporte</span>
-                  <select
-                    value={transporte}
-                    onChange={(event) => setTransporte(event.target.value)}
-                    className="mt-1 w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
                   >
-                    {options?.transportes.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    <input
+                      type="date"
+                      value={dataSaida}
+                      min={options?.hoje}
+                      max={
+                        options
+                          ? addDaysIso(options.hoje, GTA_MAX_DIAS_VALIDADE)
+                          : undefined
+                      }
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setDataSaida(value);
+                        if (
+                          value &&
+                          (!dataValidade ||
+                            dataValidade <= value ||
+                            dataValidade >
+                              addDaysIso(value, GTA_MAX_DIAS_VALIDADE))
+                        ) {
+                          setDataValidade(
+                            addDaysIso(value, GTA_VALIDADE_DIAS),
+                          );
+                        }
+                      }}
+                      aria-label="Data da saída"
+                      className="w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
+                    />
+                  </DataRow>
+
+                  <DataRow
+                    label="Validade"
+                    value={
+                      dataValidade ? formatIsoBr(dataValidade) : "Escolher"
+                    }
+                    open={editingField === "validade"}
+                    onToggle={() =>
+                      setEditingField(
+                        editingField === "validade" ? null : "validade",
+                      )
+                    }
+                  >
+                    <input
+                      type="date"
+                      value={dataValidade}
+                      min={dataSaida ? addDaysIso(dataSaida, 1) : undefined}
+                      max={
+                        dataSaida
+                          ? addDaysIso(dataSaida, GTA_MAX_DIAS_VALIDADE)
+                          : undefined
+                      }
+                      onChange={(event) =>
+                        setDataValidade(event.target.value)
+                      }
+                      aria-label="Validade da GTA"
+                      className="w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
+                    />
+                  </DataRow>
+
+                  <DataRow
+                    label="Transporte"
+                    value={transporte || "Escolher"}
+                    open={editingField === "transporte"}
+                    onToggle={() =>
+                      setEditingField(
+                        editingField === "transporte" ? null : "transporte",
+                      )
+                    }
+                  >
+                    <select
+                      value={transporte}
+                      onChange={(event) => setTransporte(event.target.value)}
+                      aria-label="Meio de transporte"
+                      className="w-full rounded-2xl border border-cream-200 bg-white px-3 py-2.5 text-base outline-none focus:border-forest-700/40"
+                    >
+                      {options?.transportes.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </DataRow>
+                </div>
+
+                {(!saidaValida || !validadeValida) && (
+                  <p className="mt-2 text-xs font-semibold text-amber-800">
+                    {!saidaValida
+                      ? "A saída precisa ser hoje ou nos próximos 30 dias."
+                      : "A validade precisa ser depois da saída, em até 30 dias."}
+                  </p>
+                )}
 
                 <button
                   type="button"
-                  onClick={continueTransporte}
-                  disabled={!transporte}
+                  onClick={continueDatas}
+                  disabled={!saidaValida || !validadeValida || !transporte}
                   className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white disabled:opacity-50"
                 >
                   Continuar
@@ -1543,6 +1539,43 @@ export function GtaChat({
       </AssistantShell>
 
       <div ref={bottomRef} />
+    </div>
+  );
+}
+
+/** Linha do cartão de datas: mostra o valor e abre o editor ao tocar. */
+function DataRow({
+  label,
+  value,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string;
+  value: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="px-3 py-2.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span className="shrink-0 text-sm text-bark-500">{label}</span>
+        <span className="flex min-w-0 items-center gap-1.5 text-sm font-bold text-bark-700">
+          <span className="truncate">{value}</span>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-bark-500 transition ${
+              open ? "rotate-180" : ""
+            }`}
+          />
+        </span>
+      </button>
+      {open && <div className="mt-2">{children}</div>}
     </div>
   );
 }
