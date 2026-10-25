@@ -2,7 +2,7 @@
 
 Leitura simplificada do inventário bovino do **SIGEN+ (CIDASC/SC)** para uso no celular, pensada para quem tem pouca familiaridade com o sistema oficial.
 
-O app mostra uma única coisa, muito bem: **todos os animais bovinos das propriedades do produtor, com brinco e apelido**. Ele não substitui o SIGEN e não emite documentos.
+O app mostra uma única coisa, muito bem: **todos os animais bovinos das propriedades do produtor, com brinco, apelido e foto**. Ele não substitui o SIGEN e não emite documentos.
 
 ## Como funciona
 
@@ -14,7 +14,7 @@ Celular (PWA) ──Tailscale──▶ tailscale serve (HTTPS)
                                   │
                     ┌─────────────┴─────────────┐
                     ▼                           ▼
-              SQLite (apelidos)          Playwright
+              SQLite (apelidos, fotos)    Playwright
                                                 │
                                                 ▼
                                           SIGEN+ (CIDASC)
@@ -24,7 +24,15 @@ Celular (PWA) ──Tailscale──▶ tailscale serve (HTTPS)
 - Depois do login, o Playwright usa `context.request` para chamar os endpoints internos do SIGEN. Não há clique em tela nem scraping de HTML.
 - A sessão fica ativa por **20 minutos de ociosidade** e então é encerrada.
 - Cada consulta baixa um PDF por UEP bovina e o parser valida a contagem contra o total do próprio PDF.
-- O SIGEN é a fonte da verdade: **não existe cache de animais**. O SQLite guarda apenas os apelidos.
+- O SIGEN é a fonte da verdade: **não existe cache de animais**. O SQLite guarda apenas os apelidos e as fotos que você adiciona.
+
+## Fotos dos animais
+
+- Toque no círculo ao lado do nome para escolher uma foto da galeria (no celular, o próprio sistema também oferece a câmera).
+- A foto é recortada no centro e reduzida para 512×512 **no celular**, antes de subir. Isso economiza rede e remove o EXIF da imagem (inclusive a localização).
+- Ela fica no servidor, em `data/fotos/<brinco oficial>.jpg`, e aparece em qualquer aparelho — não some ao limpar o navegador.
+- Para trocar, toque de novo no círculo. Para remover, use o lápis do animal e o botão **Remover foto**.
+- A foto não é do SIGEN: é um dado local, como o apelido. Nada é enviado para o CIDASC.
 
 ## Requisitos
 
@@ -154,7 +162,7 @@ rsync -a --delete \
 ssh giulio@100.117.79.72 'cd ~/controle-sigen && docker compose up -d --build'
 ```
 
-O `.env` fica **somente no servidor**, com permissão `600`. O `data/` (apelidos) nunca é sobrescrito pelo `rsync`.
+O `.env` fica **somente no servidor**, com permissão `600`. O `data/` (apelidos e fotos) nunca é sobrescrito pelo `rsync`.
 
 ### Tailscale
 
@@ -188,6 +196,7 @@ Com `sudo tailscale set --operator=$USER`, o `serve` passa a ser configurado sem
 - Os PDFs do SIGEN contêm CPF, telefones, endereço e GPS. Eles ficam em `fixtures/private/`, que é gitignored.
 - As fixtures versionadas em `fixtures/inventory/` são extrações em texto com esses campos substituídos.
 - A senha do SIGEN nunca vai para o navegador do produtor; fica no servidor (`.env` ou secret do Docker) ou apenas na sessão salva localmente.
+- As fotos dos animais ficam em `data/fotos/`, no mesmo volume do SQLite. Elas saem do celular já sem metadados e nunca vão para o SIGEN, para o GitHub ou para a imagem Docker.
 - Proteja o `.env` com `chmod 600 .env`. Evite rodar `docker compose config` em logs/chats: ele imprime o conteúdo do `.env`, incluindo a senha.
 - O app não é oficial. A consulta é apenas de leitura.
 
@@ -197,8 +206,11 @@ Com `sudo tailscale set --operator=$USER`, o `serve` passa a ser configurado sem
 apps/api/
   src/sigen/          sessão Playwright, cliente SIGEN, parser de PDF
   src/routes.ts       API REST
+  src/db.ts           SQLite (apelidos e versão das fotos)
+  src/photos.ts       arquivos das fotos em data/fotos
   scripts/            login manual e verificação
 apps/web/             PWA React + Vite + Tailwind
+  src/photo.ts        recorte e redução da foto no navegador
 fixtures/inventory/   fixtures sanitizadas (versionadas)
 fixtures/private/     PDFs e capturas reais (gitignored)
 ```

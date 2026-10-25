@@ -13,6 +13,8 @@ export type Animal = {
   };
   nascimento: string;
   apelido: string | null;
+  /** Versão da foto guardada no servidor (epoch ms) ou null se não houver. */
+  fotoVersao: number | null;
 };
 
 export type PropertyInventory = {

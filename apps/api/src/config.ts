@@ -19,14 +19,25 @@ function resolveFromRoot(value: string): string {
   return path.isAbsolute(value) ? value : path.join(rootDir, value);
 }
 
+const databasePath =
+  process.env.DATABASE_PATH === ":memory:"
+    ? ":memory:"
+    : resolveFromRoot(process.env.DATABASE_PATH ?? "data/sigen.db");
+
+/** Fotos ficam ao lado do SQLite, dentro do mesmo volume `data`. */
+const photosDir = process.env.PHOTOS_DIR
+  ? resolveFromRoot(process.env.PHOTOS_DIR)
+  : path.join(
+      databasePath === ":memory:" ? path.join(rootDir, "data") : path.dirname(databasePath),
+      "fotos",
+    );
+
 export const config = {
   rootDir,
   host: process.env.HOST ?? "127.0.0.1",
   port: Number(process.env.PORT ?? 3000),
-  databasePath:
-    process.env.DATABASE_PATH === ":memory:"
-      ? ":memory:"
-      : resolveFromRoot(process.env.DATABASE_PATH ?? "data/sigen.db"),
+  databasePath,
+  photosDir,
   webDist: path.join(rootDir, "apps/web/dist"),
   fixturesDir: path.join(rootDir, "fixtures/inventory"),
   mock: bool(process.env.SIGEN_MOCK),

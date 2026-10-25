@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { groupInventories, mergeNicknames } from "./inventory.js";
+import { groupInventories, mergeExtras } from "./inventory.js";
 import { parseInventoryText } from "./pdf.js";
 
 const fixturesDir = fileURLToPath(new URL("../../../../fixtures/inventory", import.meta.url));
@@ -58,13 +58,29 @@ describe("groupInventories", () => {
       .find((animal) => animal.brinco === "233768");
     if (!alvo) throw new Error("animal ausente");
 
-    const merged = mergeNicknames(inventory, new Map([[alvo.key, "Mimosa"]]));
+    const merged = mergeExtras(inventory, new Map([[alvo.key, "Mimosa"]]));
     const ribeirao = merged.propriedades.find((p) => p.codigo === "42-000261071");
     const atualizado = ribeirao?.animais.find((animal) => animal.key === alvo.key);
 
     expect(atualizado?.apelido).toBe("Mimosa");
     expect(atualizado?.brinco).toBe("233768");
     expect(ribeirao?.animais[0]?.apelido).toBe("Mimosa");
+    expect(merged.total).toBe(12);
+  });
+
+  it("mescla a versão da foto sem duplicar animais", () => {
+    const inventory = groupInventories(allParsed());
+    const alvo = inventory.propriedades
+      .flatMap((property) => property.animais)
+      .find((animal) => animal.brinco === "233768");
+    if (!alvo) throw new Error("animal ausente");
+
+    const merged = mergeExtras(inventory, new Map(), new Map([[alvo.key, 1700000000000]]));
+    const todos = merged.propriedades.flatMap((property) => property.animais);
+    const atualizado = todos.find((animal) => animal.key === alvo.key);
+
+    expect(atualizado?.fotoVersao).toBe(1700000000000);
+    expect(todos.filter((animal) => animal.fotoVersao !== null)).toHaveLength(1);
     expect(merged.total).toBe(12);
   });
 });

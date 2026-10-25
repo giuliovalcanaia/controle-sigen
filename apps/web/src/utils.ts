@@ -42,6 +42,22 @@ export function withNickname(
   return { ...inventory, propriedades };
 }
 
+/** Troca só a versão da foto; a ordem da lista não muda. */
+export function withPhoto(
+  inventory: Inventory,
+  animalKey: string,
+  fotoVersao: number | null,
+): Inventory {
+  const propriedades = inventory.propriedades.map((property) => ({
+    ...property,
+    animais: property.animais.map((animal) =>
+      animal.key === animalKey ? { ...animal, fotoVersao } : animal,
+    ),
+  }));
+
+  return { ...inventory, propriedades };
+}
+
 export function describeError(error: unknown): { code: string; text: string } {
   if (error instanceof ApiError) {
     switch (error.code) {
