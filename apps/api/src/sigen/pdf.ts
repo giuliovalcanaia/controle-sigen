@@ -127,7 +127,31 @@ function readHeader(text: string) {
     uf = parts[2]?.trim() ?? "";
   }
 
-  return { codigoOficial, uep, especie, localidade, municipio, uf };
+  // CPF/CNPJ fica só no servidor: é usado para localizar a UEP na tela de
+  // GTA e nunca é enviado ao navegador nem gravado em log.
+  const documentoTitular =
+    text.match(
+      /Proprietário titular do imóvel:[\s\S]{0,200}?CPF\/CNPJ:\s*([0-9]{11}|[0-9]{14})/i,
+    )?.[1] ?? "";
+
+  const produtoresIndex = text.search(/\n\s*Produtores\s*\n/i);
+  const produtoresBlock =
+    produtoresIndex >= 0 ? text.slice(produtoresIndex, produtoresIndex + 3000) : "";
+  const documentoProdutor =
+    produtoresBlock.match(
+      /Nome:[\s\S]{0,200}?CPF\/CNPJ:\s*([0-9]{11}|[0-9]{14})/i,
+    )?.[1] ?? "";
+
+  return {
+    codigoOficial,
+    uep,
+    especie,
+    localidade,
+    municipio,
+    uf,
+    documentoTitular,
+    documentoProdutor: documentoProdutor || documentoTitular,
+  };
 }
 
 function readDeclaredTotal(lines: string[]): number | null {
@@ -176,6 +200,7 @@ export function parseInventoryText(rawText: string): ParsedInventory {
       key: brincoOficial,
       brinco,
       brincoOficial,
+      uep: header.uep,
       sexo: sexo as Animal["sexo"],
       idade: { anos: Number(anos), meses: Number(meses) },
       nascimento,

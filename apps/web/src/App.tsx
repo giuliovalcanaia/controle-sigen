@@ -7,10 +7,11 @@ import {
   ShieldCheck,
   WifiOff,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "./api";
 import { Composer } from "./components/Composer";
 import { CowMark } from "./components/CowMark";
+import { GtaFlow } from "./components/GtaFlow";
 import { InventoryCard } from "./components/InventoryCard";
 import { NicknameDialog } from "./components/NicknameDialog";
 import { PhotoDialog } from "./components/PhotoDialog";
@@ -26,6 +27,7 @@ type Message =
 
 const LIST_RE =
   /animais|rebanho|listar|lista|mostrar|ver|meus|quantos|cabe[cç]as|bois|vacas|gado|bovin/i;
+const GTA_RE = /gta|guia de tr[aâ]nsito/i;
 
 let nextId = 1;
 const uid = () => nextId++;
@@ -37,11 +39,20 @@ export default function App() {
   const [status, setStatus] = useState<SigenStatus | null>(null);
   const [editing, setEditing] = useState<Animal | null>(null);
   const [photoAnimal, setPhotoAnimal] = useState<Animal | null>(null);
+  const [gtaOpen, setGtaOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const lastRequest = useRef("Ver todos os animais");
   const busy = useRef(false);
   const scrollToResult = useRef(false);
+
+  const lastInventory = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message?.kind === "inventory") return message.inventory;
+    }
+    return null;
+  }, [messages]);
 
   useEffect(() => {
     api
@@ -119,6 +130,20 @@ export default function App() {
   );
 
   function handleSend(text: string) {
+    if (GTA_RE.test(text)) {
+      setMessages((previous) => [
+        ...previous,
+        { id: uid(), role: "user", kind: "text", text },
+        {
+          id: uid(),
+          role: "assistant",
+          kind: "text",
+          text: "Para emitir uma GTA, toque em “Emitir GTA” no fim da lista de animais. Eu mostro as propriedades, os animais e confiro tudo antes de enviar.",
+        },
+      ]);
+      return;
+    }
+
     if (LIST_RE.test(text)) {
       void runList(text);
       return;
@@ -131,7 +156,7 @@ export default function App() {
         id: uid(),
         role: "assistant",
         kind: "text",
-        text: "Por enquanto eu só sei mostrar os animais. Toque em “Ver todos os animais” que eu busco no SIGEN.",
+        text: "Por enquanto eu só sei mostrar os animais. Toque em “Ver todos os animais” que eu busco no SIGEN. Para emitir uma GTA, use o botão no fim da lista.",
       },
     ]);
   }
@@ -263,6 +288,7 @@ export default function App() {
                 message={message}
                 onEdit={setEditing}
                 onPhoto={setPhotoAnimal}
+                onGta={() => setGtaOpen(true)}
                 onRefresh={() => void runList(lastRequest.current, { refresh: true })}
                 onRetry={() => void runList(lastRequest.current, { refresh: true })}
                 refreshing={loading}
@@ -293,6 +319,14 @@ export default function App() {
         onUpload={uploadPhoto}
         onRemove={removePhoto}
       />
+
+      {lastInventory && (
+        <GtaFlow
+          inventory={lastInventory}
+          open={gtaOpen}
+          onClose={() => setGtaOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -328,6 +362,7 @@ function ChatMessage({
   message,
   onEdit,
   onPhoto,
+  onGta,
   onRefresh,
   onRetry,
   refreshing,
@@ -335,6 +370,7 @@ function ChatMessage({
   message: Message;
   onEdit: (animal: Animal) => void;
   onPhoto: (animal: Animal) => void;
+  onGta: () => void;
   onRefresh: () => void;
   onRetry: () => void;
   refreshing: boolean;
@@ -356,6 +392,7 @@ function ChatMessage({
           inventory={message.inventory}
           onEdit={onEdit}
           onPhoto={onPhoto}
+          onGta={onGta}
           onRefresh={onRefresh}
           refreshing={refreshing}
         />

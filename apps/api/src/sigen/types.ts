@@ -6,6 +6,8 @@ export type Animal = {
   /** Nº Manejo (6 dígitos). É o número que o produtor chama de "brinco". */
   brinco: string;
   brincoOficial: string;
+  /** Nº da UEP de onde o animal veio (ex.: "1"). */
+  uep?: string;
   sexo: Sexo;
   idade: {
     anos: number;
@@ -47,6 +49,10 @@ export type ParsedInventory = {
   uf: string;
   animais: Animal[];
   totalDeclarado: number | null;
+  /** CPF/CNPJ do proprietário titular do imóvel (uso interno, nunca vai para o app). */
+  documentoTitular: string;
+  /** CPF/CNPJ do produtor no quadro "Produtores" (uso interno). */
+  documentoProdutor: string;
 };
 
 export type ErrorCode =
@@ -58,7 +64,18 @@ export type ErrorCode =
   | "UEP_LIST_EMPTY"
   | "PDF_LAYOUT_MUDOU"
   | "PDF_TOOL_MISSING"
-  | "DADOS_INVALIDOS";
+  | "DADOS_INVALIDOS"
+  | "GTA_CPF_ORIGEM"
+  | "GTA_UEP_INVALIDA"
+  | "GTA_ANIMAL_NAO_ENCONTRADO"
+  | "GTA_ANIMAIS_DIVERGENTES"
+  | "GTA_TELA_MUDOU"
+  | "GTA_SIGEN_RECUSOU"
+  | "GTA_EM_ANDAMENTO"
+  | "GTA_JA_EMITIDA"
+  | "GTA_INCERTA"
+  | "GTA_NAO_CONFIRMADA"
+  | "GTA_INDISPONIVEL";
 
 export class SigenError extends Error {
   readonly code: ErrorCode;

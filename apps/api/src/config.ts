@@ -32,15 +32,28 @@ const photosDir = process.env.PHOTOS_DIR
       "fotos",
     );
 
+/** PDFs das GTAs ficam ao lado do SQLite, no mesmo volume `data`. */
+const gtaDir = process.env.GTA_DIR
+  ? resolveFromRoot(process.env.GTA_DIR)
+  : path.join(
+      databasePath === ":memory:" ? path.join(rootDir, "data") : path.dirname(databasePath),
+      "gta",
+    );
+
 export const config = {
   rootDir,
   host: process.env.HOST ?? "127.0.0.1",
   port: Number(process.env.PORT ?? 3000),
   databasePath,
   photosDir,
+  gtaDir,
   webDist: path.join(rootDir, "apps/web/dist"),
   fixturesDir: path.join(rootDir, "fixtures/inventory"),
   mock: bool(process.env.SIGEN_MOCK),
+  gta: {
+    /** Enquanto falso, o app só confere a GTA e nunca salva. */
+    emissaoAtiva: bool(process.env.GTA_EMISSAO_ATIVA),
+  },
   sigen: {
     baseUrl: (process.env.SIGEN_BASE_URL ?? "https://sigen.cidasc.sc.gov.br").replace(/\/+$/, ""),
     usuario: process.env.SIGEN_USUARIO ?? "",

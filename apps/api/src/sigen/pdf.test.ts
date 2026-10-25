@@ -23,11 +23,14 @@ describe("parseInventoryText", () => {
     expect(parsed.uf).toBe("SC");
     expect(parsed.totalDeclarado).toBe(4);
     expect(parsed.animais).toHaveLength(4);
+    expect(parsed.documentoTitular).toBe("00000000000");
+    expect(parsed.documentoProdutor).toBe("00000000000");
 
     expect(parsed.animais[0]).toMatchObject({
       brinco: "067836",
       brincoOficial: "076000003067836",
       key: "076000003067836",
+      uep: "1",
       sexo: "Fêmea",
       idade: { anos: 0, meses: 8 },
       nascimento: "17/02/2026",

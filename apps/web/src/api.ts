@@ -1,4 +1,12 @@
-import type { ApiErrorBody, Inventory, SigenStatus } from "./types";
+import type {
+  ApiErrorBody,
+  GtaDestinoUep,
+  GtaInput,
+  GtaJobView,
+  GtaOptions,
+  Inventory,
+  SigenStatus,
+} from "./types";
 
 export class ApiError extends Error {
   readonly code: string;
@@ -73,5 +81,23 @@ export const api = {
     request<{ ok: true }>(`/api/photos/${encodeURIComponent(animalKey)}`, {
       method: "DELETE",
     }),
+  getGtaOptions: () => request<GtaOptions>("/api/gta/opcoes"),
+  lookupGtaDestinos: (cpf: string, dataSaida: string) =>
+    request<{ ueps: GtaDestinoUep[] }>("/api/gta/destinos", {
+      method: "POST",
+      body: JSON.stringify({ cpf, dataSaida }),
+    }),
+  startGta: (body: {
+    gta: GtaInput;
+    modo: "conferir" | "emitir";
+    forcar?: boolean;
+  }) =>
+    request<{ id: number; status: string }>("/api/gta", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getGta: (id: number) => request<GtaJobView>(`/api/gta/${id}`),
+  listGtas: () => request<{ gtas: GtaJobView[] }>("/api/gta"),
+  gtaPdfUrl: (id: number) => `/api/gta/${id}/pdf`,
   logout: () => request<{ ok: true }>("/api/session/logout", { method: "POST" }),
 };

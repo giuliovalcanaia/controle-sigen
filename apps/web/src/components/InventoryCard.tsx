@@ -1,4 +1,4 @@
-import { Pencil, RefreshCw } from "lucide-react";
+import { Pencil, RefreshCw, Truck } from "lucide-react";
 import type { Animal, Inventory } from "../types";
 import { formatAge, formatTime } from "../utils";
 import { AnimalAvatar } from "./AnimalAvatar";
@@ -7,6 +7,7 @@ type Props = {
   inventory: Inventory;
   onEdit: (animal: Animal) => void;
   onPhoto: (animal: Animal) => void;
+  onGta: () => void;
   onRefresh: () => void;
   refreshing: boolean;
 };
@@ -15,6 +16,7 @@ export function InventoryCard({
   inventory,
   onEdit,
   onPhoto,
+  onGta,
   onRefresh,
   refreshing,
 }: Props) {
@@ -98,8 +100,20 @@ export function InventoryCard({
         ))}
       </div>
 
-      <footer className="border-t border-cream-200 bg-white/60 px-5 py-3 text-[11px] text-bark-500">
-        Dados do SIGEN+ · o número em destaque é o brinco de manejo.
+      <footer className="border-t border-cream-200 bg-white/60 px-5 py-3">
+        {propriedadesComAnimais > 0 && (
+          <button
+            type="button"
+            onClick={onGta}
+            className="mb-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-forest-700/20 bg-white text-sm font-extrabold text-forest-800 shadow-sm transition active:scale-[0.99]"
+          >
+            <Truck className="h-4 w-4" />
+            Emitir GTA
+          </button>
+        )}
+        <p className="text-[11px] text-bark-500">
+          Dados do SIGEN+ · o número em destaque é o brinco de manejo.
+        </p>
       </footer>
     </article>
   );

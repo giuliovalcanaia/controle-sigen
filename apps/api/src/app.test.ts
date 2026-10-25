@@ -4,6 +4,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { openAnimalStore, type AnimalStore } from "./db.js";
+import { createMockGtaService } from "./gta/mock.js";
+import { addDaysIso, todayIso } from "./gta/schema.js";
 import { openPhotoStore, type PhotoStore } from "./photos.js";
 import { getMockInventory } from "./sigen/mock.js";
 
@@ -28,6 +30,7 @@ async function setup() {
       inventory: { getInventory: async () => getMockInventory() },
       store,
       photos,
+      gta: createMockGtaService(store),
       getStatus: () => ({ state: "active", expiresInSeconds: 0 }),
       logout: async () => undefined,
     },
@@ -204,5 +207,113 @@ describe("API", () => {
     const response = await server.inject({ method: "GET", url: "/api/nao-existe" });
     expect(response.statusCode).toBe(404);
     expect(response.json().code).toBe("NAO_ENCONTRADO");
+  });
+});
+
+describe("GTA", () => {
+  const gta = () => ({
+    origem: { codigoOficial: "42-000165623", uep: "1" },
+    destino: { tipo: "propria" as const, codigoOficial: "42-000261071", uep: "1" },
+    animais: [{ key: ANIMAL_KEY, brinco: "067836" }],
+    finalidade: "ENGORDA",
+    dataSaida: todayIso(),
+    dataValidade: addDaysIso(todayIso(), 3),
+    transporte: "RODOVIÁRIO",
+  });
+
+  async function waitForJob(
+    server: Awaited<ReturnType<typeof buildApp>>,
+    id: number,
+  ) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const response = await server.inject({ method: "GET", url: `/api/gta/${id}` });
+      const job = response.json();
+      if (["emitida", "conferida", "erro", "incerta"].includes(job.status)) {
+        return job;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error("A GTA simulada não terminou a tempo.");
+  }
+
+  it("devolve as opções de finalidade, transporte e datas", async () => {
+    const server = await setup();
+    const response = await server.inject({ method: "GET", url: "/api/gta/opcoes" });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.finalidades).toContain("ENGORDA");
+    expect(body.finalidades).toContain("ATENDIMENTO VETERINÁRIO");
+    expect(body.transportes).toContain("RODOVIÁRIO");
+    expect(body.hoje).toBe(todayIso());
+    expect(body.emissaoAtiva).toBe(true);
+  });
+
+  it("busca propriedades de destino no mock", async () => {
+    const server = await setup();
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/gta/destinos",
+      payload: { cpf: "12345678901", dataSaida: todayIso() },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().ueps).toHaveLength(4);
+  });
+
+  it("emite no mock e conclui com número", async () => {
+    const server = await setup();
+    const start = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: gta(), modo: "emitir" },
+    });
+
+    expect(start.statusCode).toBe(202);
+    const job = await waitForJob(server, start.json().id);
+    expect(job.status).toBe("emitida");
+    expect(job.numero).toBe("000000001");
+    expect(job.temPdf).toBe(false);
+  });
+
+  it("no modo conferir não emite", async () => {
+    const server = await setup();
+    const start = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: gta(), modo: "conferir" },
+    });
+
+    expect(start.statusCode).toBe(202);
+    const job = await waitForJob(server, start.json().id);
+    expect(job.status).toBe("conferida");
+    expect(job.numero).toBeNull();
+  });
+
+  it("recusa animal que não está na propriedade", async () => {
+    const server = await setup();
+    const payload = gta();
+    payload.animais = [{ key: "076000000233768", brinco: "233768" }];
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: payload, modo: "emitir" },
+    });
+
+    expect(response.statusCode).toBe(422);
+    expect(response.json().code).toBe("GTA_ANIMAIS_DIVERGENTES");
+  });
+
+  it("recusa payload inválido", async () => {
+    const server = await setup();
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: { ...gta(), animais: [] }, modo: "emitir" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe("DADOS_INVALIDOS");
   });
 });

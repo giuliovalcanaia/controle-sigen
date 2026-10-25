@@ -12,7 +12,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json",
     "sigen:login": "tsx scripts/login.ts",
     "sigen:check": "tsx scripts/check.ts",
-    "sigen:inspect": "tsx scripts/inspect-ueps.ts"
+    "sigen:inspect": "tsx scripts/inspect-ueps.ts",
+    "sigen:gta:check": "tsx scripts/check-gta.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.7",

@@ -1,6 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { AnimalStore } from "./db.js";
+import type { GtaService } from "./gta/service.js";
+import {
+  firstIssue,
+  gtaInputSchema,
+  gtaLookupSchema,
+  isValidIsoDate,
+  todayIso,
+} from "./gta/schema.js";
 import { isJpeg, type PhotoStore } from "./photos.js";
 import { mergeExtras } from "./sigen/inventory.js";
 import type { Inventory, SigenError, SigenStatus } from "./sigen/types.js";
@@ -13,6 +21,7 @@ export type RouteDeps = {
   inventory: InventoryService;
   store: AnimalStore;
   photos: PhotoStore;
+  gta: GtaService;
   getStatus(): SigenStatus;
   logout(): Promise<void>;
 };
@@ -162,6 +171,101 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps) {
 
       deps.photos.remove(key.data);
       return { ok: true };
+    },
+  );
+
+  app.get("/api/gta/opcoes", async () => deps.gta.options());
+
+  const gtaDestinosSchema = gtaLookupSchema.extend({
+    dataSaida: z.string().trim().optional(),
+  });
+
+  app.post("/api/gta/destinos", async (request, reply) => {
+    const body = gtaDestinosSchema.safeParse(request.body);
+    if (!body.success) {
+      return reply.code(400).send({
+        code: "DADOS_INVALIDOS",
+        message: firstIssue(body.error),
+      });
+    }
+
+    const dataSaida =
+      body.data.dataSaida && isValidIsoDate(body.data.dataSaida)
+        ? body.data.dataSaida
+        : todayIso();
+    const ueps = await deps.gta.lookupDestinos(body.data.cpf, dataSaida);
+    return { ueps };
+  });
+
+  const gtaStartSchema = z.object({
+    gta: gtaInputSchema,
+    modo: z.enum(["conferir", "emitir"]).default("emitir"),
+    forcar: z.boolean().optional(),
+  });
+
+  app.post("/api/gta", async (request, reply) => {
+    const body = gtaStartSchema.safeParse(request.body);
+    if (!body.success) {
+      return reply.code(400).send({
+        code: "DADOS_INVALIDOS",
+        message: firstIssue(body.error),
+      });
+    }
+
+    const result = await deps.gta.start({
+      input: body.data.gta,
+      modo: body.data.modo,
+      forcar: body.data.forcar,
+    });
+    return reply.code(202).send(result);
+  });
+
+  app.get("/api/gta", async () => ({ gtas: deps.gta.list(20) }));
+
+  app.get<{ Params: { id: string } }>("/api/gta/:id", async (request, reply) => {
+    const id = Number(request.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return reply.code(400).send({
+        code: "DADOS_INVALIDOS",
+        message: "Identificador de GTA inválido.",
+      });
+    }
+
+    const job = deps.gta.get(id);
+    if (!job) {
+      return reply.code(404).send({
+        code: "NAO_ENCONTRADO",
+        message: "Emissão de GTA não encontrada.",
+      });
+    }
+    return job;
+  });
+
+  app.get<{ Params: { id: string } }>(
+    "/api/gta/:id/pdf",
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return reply.code(400).send({
+          code: "DADOS_INVALIDOS",
+          message: "Identificador de GTA inválido.",
+        });
+      }
+
+      const pdf = deps.gta.pdf(id);
+      if (!pdf) {
+        return reply.code(404).send({
+          code: "PDF_NAO_ENCONTRADO",
+          message: "O PDF desta GTA não está disponível.",
+        });
+      }
+
+      return reply
+        .header("Content-Type", "application/pdf")
+        .header("Cache-Control", "private, no-store")
+        .header("X-Content-Type-Options", "nosniff")
+        .header("Content-Disposition", `inline; filename="gta-${id}.pdf"`)
+        .send(pdf);
     },
   );
 

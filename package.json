@@ -18,7 +18,8 @@
     "typecheck": "npm run typecheck -w @sigen/api && npm run typecheck -w @sigen/web",
     "sigen:login": "npm run sigen:login -w @sigen/api",
     "sigen:check": "npm run sigen:check -w @sigen/api",
-    "deploy": "bash scripts/deploy.sh"
+    "deploy": "bash scripts/deploy.sh",
+    "sigen:gta:check": "npm run sigen:gta:check -w @sigen/api"
   },
   "devDependencies": {
     "concurrently": "^10.0.6"

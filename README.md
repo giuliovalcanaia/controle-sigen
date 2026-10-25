@@ -2,7 +2,7 @@
 
 Leitura simplificada do inventário bovino do **SIGEN+ (CIDASC/SC)** para uso no celular, pensada para quem tem pouca familiaridade com o sistema oficial.
 
-O app mostra uma única coisa, muito bem: **todos os animais bovinos das propriedades do produtor, com brinco, apelido e foto**. Ele não substitui o SIGEN e não emite documentos.
+O app mostra uma única coisa, muito bem: **todos os animais bovinos das propriedades do produtor, com brinco, apelido e foto**. Também ajuda a **emitir a GTA** pela tela oficial do SIGEN, com conferência e confirmação. Ele não substitui o SIGEN.
 
 ## Como funciona
 
@@ -14,17 +14,19 @@ Celular (PWA) ──Tailscale──▶ tailscale serve (HTTPS)
                                   │
                     ┌─────────────┴─────────────┐
                     ▼                           ▼
-              SQLite (apelidos, fotos)    Playwright
+        SQLite (apelidos, fotos, GTAs)     Playwright
                                                 │
                                                 ▼
                                           SIGEN+ (CIDASC)
 ```
 
 - O login no SIGEN é feito **sob demanda**, na primeira consulta.
-- Depois do login, o Playwright usa `context.request` para chamar os endpoints internos do SIGEN. Não há clique em tela nem scraping de HTML.
+- Para **ler** dados, o Playwright usa `context.request` contra os endpoints internos do SIGEN. Não há scraping de HTML.
+- Para **emitir GTA**, o Playwright preenche a tela oficial dentro do iframe e salva pelos mesmos endpoints JSON que a tela usa. A conferência e o salvamento são separados: nada é salvo antes da confirmação.
 - A sessão fica ativa por **20 minutos de ociosidade** e então é encerrada.
 - Cada consulta baixa um PDF por UEP bovina e o parser valida a contagem contra o total do próprio PDF.
-- O SIGEN é a fonte da verdade: **não existe cache de animais**. O SQLite guarda apenas os apelidos e as fotos que você adiciona.
+- O SIGEN é a fonte da verdade: **não existe cache de animais**. O SQLite guarda apenas os apelidos, as fotos e o histórico de GTAs.
+- A emissão de GTA fica **desligada por padrão** (`GTA_EMISSAO_ATIVA=0`). Sem ela, o app só confere o preenchimento no SIGEN e nunca salva.
 
 ## Fotos dos animais
 
@@ -33,6 +35,52 @@ Celular (PWA) ──Tailscale──▶ tailscale serve (HTTPS)
 - A foto é recortada no centro e reduzida para 512×512 **no celular**, antes de subir. Isso economiza rede e remove o EXIF da imagem (inclusive a localização).
 - Ela fica no servidor, em `data/fotos/<brinco oficial>.jpg`, e aparece em qualquer aparelho — não some ao limpar o navegador.
 - A foto não é do SIGEN: é um dado local, como o apelido. Nada é enviado para o CIDASC.
+
+## Emitir GTA
+
+1. Toque em **Ver todos os animais**.
+2. No fim do cartão do inventário, toque em **Emitir GTA**.
+3. Escolha a **propriedade de origem** (a que tem animais).
+4. Escolha o **destino**: outra propriedade sua ou **Outra pessoa** (busca por CPF/CNPJ).
+5. Marque os **animais** e toque em continuar.
+6. Confira **finalidade** (padrão ENGORDA), **data da saída** (hoje) e **validade** (+3 dias). Nota fiscal, placa, lacre e observação são opcionais.
+7. Na revisão, confira tudo e toque em **Emitir GTA**.
+
+O app usa os valores fixos da tela oficial: **Dentro do Estado**, destino **Propriedade** e tipo **Normal**. O transporte vem como **RODOVIÁRIO** e pode ser trocado.
+
+### Segurança
+
+- A GTA é um **documento oficial**. Depois de emitida, não dá para desfazer pelo app.
+- O app confere origem, destino, finalidade, datas e o **brinco oficial de 15 dígitos** de cada animal antes de salvar. Se algo divergir, ele para e não emite.
+- Se o SIGEN pedir **senha, anexo, descrição ou justificativa de bloqueio**, o app não salva; avisa para finalizar manualmente.
+- Depois do salvamento, o app **nunca repete sozinho**. Se a resposta ficar ambígua, o estado vira **incerta** e você deve conferir no SIGEN antes de tentar de novo.
+- Só uma emissão por vez. A sessão do SIGEN serializa tudo.
+
+### Modo conferência
+
+Com `GTA_EMISSAO_ATIVA=0` (padrão), o botão final vira **Conferir no SIGEN**: o app preenche a tela oficial, faz a conferência e a checagem de permissão, e para **antes de salvar**. Nada é emitido.
+
+Para habilitar a emissão de verdade, depois de validar com uma GTA real:
+
+```bash
+# no .env do servidor
+GTA_EMISSAO_ATIVA=1
+```
+
+### Limites desta versão
+
+- Só **dentro de Santa Catarina** e destino **Propriedade**.
+- Sem GTA interestadual, agroindústria, evento ou produtor.
+- Sem anexos/exames, vacinações, aviso por e-mail/telefone ou cancelamento.
+- O PDF, quando o SIGEN oferece, fica em `data/gta/<id>.pdf` e é servido com `no-store`.
+
+### Verificação sem emitir
+
+```bash
+npm run sigen:gta:check
+```
+
+Abre a tela de GTA e confere os componentes e o listener da data. Não preenche e não salva. Rode depois de atualizações do SIGEN.
 
 ## Requisitos
 
@@ -193,7 +241,8 @@ Com `sudo tailscale set --operator=$USER`, o `serve` passa a ser configurado sem
 - **Somente BOVINO.** Outras espécies podem existir nas UEPs, mas são ignoradas.
 - **Quatro propriedades hoje**, uma delas sem animais. A propriedade vazia aparece como “Sem animais”.
 - **Sem paginação ou busca**: o rebanho tem cerca de 12 animais.
-- **Sem LLM/MCP nesta versão.** A interface é um chat com uma única ação determinística.
+- **Sem LLM/MCP nesta versão.** A interface é um chat para listar e um fluxo separado e determinístico para a GTA.
+- **A GTA usa a tela oficial.** O app não reimplementa as regras do SIGEN; ele preenche a tela e usa os mesmos endpoints JSON dela.
 
 ## Privacidade
 
@@ -201,20 +250,25 @@ Com `sudo tailscale set --operator=$USER`, o `serve` passa a ser configurado sem
 - As fixtures versionadas em `fixtures/inventory/` são extrações em texto com esses campos substituídos.
 - A senha do SIGEN nunca vai para o navegador do produtor; fica no servidor (`.env` ou secret do Docker) ou apenas na sessão salva localmente.
 - As fotos dos animais ficam em `data/fotos/`, no mesmo volume do SQLite. Elas saem do celular já sem metadados e nunca vão para o SIGEN, para o GitHub ou para a imagem Docker.
+- Os PDFs das GTAs ficam em `data/gta/`, com permissão `600`, fora do git e servidos com `Cache-Control: no-store`.
+- O CPF do produtor é lido da sessão do SIGEN e usado só no servidor. O CPF de um destino de terceiro é enviado apenas para a busca e não é gravado.
 - Proteja o `.env` com `chmod 600 .env`. Evite rodar `docker compose config` em logs/chats: ele imprime o conteúdo do `.env`, incluindo a senha.
-- O app não é oficial. A consulta é apenas de leitura.
+- O app não é oficial. A listagem é de leitura; a GTA é uma automação da tela oficial, com confirmação e sem retentativa automática.
 
 ## Estrutura
 
 ```
 apps/api/
-  src/sigen/          sessão Playwright, cliente SIGEN, parser de PDF
+  src/sigen/          sessão Playwright, cliente SIGEN, parser de PDF, driver da GTA
+  src/gta/            serviço, runner, schema, PDFs e mock da GTA
   src/routes.ts       API REST
-  src/db.ts           SQLite (apelidos e versão das fotos)
+  src/db.ts           SQLite (apelidos, fotos e histórico de GTAs)
   src/photos.ts       arquivos das fotos em data/fotos
-  scripts/            login manual e verificação
+  scripts/            login manual, verificação e check da tela de GTA
 apps/web/             PWA React + Vite + Tailwind
   src/photo.ts        recorte e redução da foto no navegador
+  src/components/GtaFlow.tsx  fluxo de emissão em etapas
+docs/gta-fluxo.md     mapa técnico da tela de GTA (sem PII)
 fixtures/inventory/   fixtures sanitizadas (versionadas)
 fixtures/private/     PDFs e capturas reais (gitignored)
 ```
@@ -229,3 +283,7 @@ fixtures/private/     PDFs e capturas reais (gitignored)
 | `SESSAO_EXPIRADA` | A sessão de 20 min caiu; a próxima consulta reloga |
 | `PDF_LAYOUT_MUDOU` | O SIGEN mudou o relatório; atualize o parser e as fixtures |
 | `UEP_LIST_EMPTY` | A conta não retornou UEPs ou o endpoint mudou |
+| `GTA_TELA_MUDOU` | A tela de GTA do SIGEN mudou; rode `npm run sigen:gta:check` |
+| `GTA_INDISPONIVEL` | Emissão desativada ou o SIGEN pede senha/anexo; finalize no SIGEN |
+| `GTA_EM_ANDAMENTO` / `GTA_INCERTA` | Confira no SIGEN antes de tentar de novo |
+| `GTA_JA_EMITIDA` | A mesma GTA já foi emitida há pouco; confirme antes de reemitir |

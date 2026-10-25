@@ -1,4 +1,5 @@
 import type { APIResponse, BrowserContext } from "playwright";
+import type { GtaDestinoUep } from "../gta/types.js";
 import { groupInventories } from "./inventory.js";
 import { parseInventoryText, pdfToText } from "./pdf.js";
 import type { SigenSession } from "./session.js";
@@ -9,6 +10,8 @@ const UEP_LIST_PATH =
   "/DSA.Cadastros/UnidadeExploracao/VerificarPermissaoImprimirInventarioHome";
 const UEP_PDF_PATH =
   "/DSA.Cadastros/UnidadeExploracao/ImprimeInventarioAnimais";
+const UEP_QUICK_SEARCH_PATH =
+  "/DSA.Cadastros/UnidadeExploracao/QuickSearch";
 
 function isLoginResponse(response: APIResponse): boolean {
   if (response.status() >= 300 && response.status() < 400) return true;
@@ -77,6 +80,110 @@ export class SigenClient {
 
       const inventory = groupInventories(parsed);
       return { ...inventory, avisos: warnings };
+    });
+  }
+
+  /** Lista as UEPs com código, nº, localidade e espécie (sem CPF). */
+  async getUeps(): Promise<UepRef[]> {
+    return this.session.withContext((context) => this.listUeps(context));
+  }
+
+  /**
+   * Busca as UEPs de um CPF/CNPJ na mesma consulta que a tela de GTA usa.
+   * Devolve só BOVINO e sem CPF/telefone/endereço.
+   */
+  async quickSearchUeps(
+    cpf: string,
+    dataSaida: string,
+  ): Promise<GtaDestinoUep[]> {
+    const dtSaida = new Date(`${dataSaida}T00:00:00-03:00`).toISOString();
+
+    return this.session.withContext(async (context) => {
+      const response = await context.request.post(
+        `${this.baseUrl}${UEP_QUICK_SEARCH_PATH}`,
+        {
+          form: {
+            fitroHabilitacao: "False",
+            filtroEvento: "",
+            listarExcluidas: "False",
+            idEspecieFiltro: "",
+            idGrupoEspecie: "",
+            tipoPropriedade: "",
+            dtSaida,
+            idMunicipioFiltro: "",
+            idOficialPropriedade: "",
+            flTek: "",
+            listarTodas: "",
+            filtroForaDoEstado: "",
+            listarProdutor: "True",
+            bloqueiCodigoOficial: "",
+            idPessoaAutorizada: "",
+            paramTipoGta: "S",
+            query: cpf,
+          },
+          headers: {
+            Accept: "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            Referer: `${this.baseUrl}/DSA.Areas.Movimentacao/SaidaAnimais`,
+          },
+          timeout: 30_000,
+        },
+      );
+
+      if (response.status() >= 300 && response.status() < 400) {
+        throw new SigenError("SESSAO_EXPIRADA", "A sessão do SIGEN expirou.");
+      }
+      if (!response.ok()) {
+        throw new SigenError(
+          "SIGEN_ERRO",
+          `O SIGEN respondeu ${response.status()} ao buscar propriedades.`,
+        );
+      }
+
+      const contentType = response.headers()["content-type"] ?? "";
+      if (!contentType.includes("application/json")) {
+        throw new SigenError(
+          "SIGEN_ERRO",
+          "O SIGEN respondeu em um formato inesperado ao buscar propriedades.",
+        );
+      }
+
+      const body = (await response.json()) as {
+        success?: boolean;
+        data?: unknown[];
+        message?: unknown;
+      };
+      if (body.success === false) {
+        throw new SigenError(
+          "GTA_SIGEN_RECUSOU",
+          responseMessage(body) || "O SIGEN recusou a busca por propriedades.",
+        );
+      }
+
+      const rows = Array.isArray(body.data) ? body.data : [];
+      return rows
+        .filter(
+          (row): row is Record<string, unknown> =>
+            Boolean(row) &&
+            typeof row === "object" &&
+            String((row as Record<string, unknown>).nm_especie_animal ?? "")
+              .toUpperCase() === "BOVINO",
+        )
+        .map((row) => {
+          const codigo = String(row.cd_oficial ?? "").replace(/\D/g, "");
+          const ibge = String(row.nr_codigo_IBGE ?? "42").replace(/\D/g, "");
+          return {
+            id: String(row.id_unidade_exploracao ?? ""),
+            codigoOficial: `${ibge}-${codigo.padStart(9, "0")}`,
+            uep: String(row.nr_unidade_exploracao ?? ""),
+            localidade: String(row.nm_localidade ?? ""),
+            municipio: String(row.nm_municipio ?? ""),
+            uf: String(row.sg_uf ?? "SC"),
+            especie: String(row.nm_especie_animal ?? "BOVINO"),
+            produtor:
+              typeof row.nm_pessoa === "string" ? row.nm_pessoa : null,
+          };
+        });
     });
   }
 
