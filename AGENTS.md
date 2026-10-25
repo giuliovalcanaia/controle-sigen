@@ -33,7 +33,7 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 - `apps/api/src/db.ts` — SQLite (`better-sqlite3`) com apelidos, versão das fotos e histórico de GTAs.
 - `apps/api/src/photos.ts` — arquivos das fotos em `data/fotos/<brinco oficial>.jpg`.
 - `apps/api/src/gta/pdf.ts` — PDFs das GTAs em `data/gta/<id>.pdf`.
-- `apps/web/` — PWA React/Vite/Tailwind; chat de listagem + fluxo de GTA em etapas.
+- `apps/web/` — PWA React/Vite/Tailwind; chat de listagem + conversa de GTA em etapas (`components/GtaChat.tsx`).
 - `docs/gta-fluxo.md` — mapa técnico da tela de GTA (sem PII).
 
 ## Invariantes que não podem quebrar
@@ -49,7 +49,7 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 9. **Foto é dado local**, não do SIGEN. Fica em `data/fotos` com a chave oficial, fora do git e da imagem Docker. Nunca envie foto ao SIGEN.
 10. **GTA é documento oficial.** Depois do `POST /SaidaAnimais/Add`, nunca repita o salvamento sozinho. Resposta ambígua vira `incerta` e o produtor confere no SIGEN.
 11. **Emissão desligada por padrão.** `GTA_EMISSAO_ATIVA=0` só confere a tela; `1` só depois de uma emissão real validada.
-12. **CPF não vaza.** O CPF do produtor vem da sessão do SIGEN e fica no servidor. O CPF de terceiro só é usado na busca; nunca vai para log, banco ou navegador.
+12. **CPF não vaza.** O CPF do produtor vem da sessão do SIGEN e fica no servidor. O CPF de terceiro é digitado no chat, usado só para buscar a UEP e emitir, e nunca vai para log ou banco. No histórico, aparece mascarado.
 13. **PDF de GTA é privado.** Fica em `data/gta`, permissão `600`, fora do git, servido com `no-store`.
 14. **Falhe antes de salvar.** O driver confere origem, destino, finalidade, datas e o brinco oficial de 15 dígitos de cada animal. Se a tela mudar, lance `GTA_TELA_MUDOU` e não emita.
 15. **Uma emissão por vez.** A sessão serializa; não abra outro Playwright durante a GTA.
@@ -81,9 +81,10 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 - Animais com apelido vêm primeiro, em ordem alfabética; os demais por brinco.
 - O círculo ao lado do nome é o botão da foto: toque abre o diálogo com ver em tela cheia, trocar e remover. Sem foto, mostra a inicial (ou o ícone de boi quando não há apelido).
 - A redução para 512×512 acontece no navegador (`src/photo.ts`); nunca suba o original.
-- O botão **Emitir GTA** fica no fim do cartão do inventário. O fluxo é em etapas: origem → destino → animais → dados → revisão → resultado.
-- O chat **não** dispara GTA; é ação por botão, com confirmação. Textos em português simples, botões grandes.
-- Com `GTA_EMISSAO_ATIVA=0`, o botão final é **Conferir no SIGEN** e nada é salvo.
+- O botão **Fazer GTA** fica ao lado de **Ver todos os animais**, no composer. O fluxo acontece no chat, sem modal: animais → CPF → UEP → finalidade → saída → validade → transporte → revisão → resultado.
+- O CPF de destino é digitado no campo de mensagem e não entra no histórico: a bolha mostra só a máscara (`***.***.***-01`). O campo fica numérico e é limpo depois.
+- Digitar “GTA” inicia a conversa, mas a emissão só acontece pelo botão/checkbox da revisão. Textos em português simples, botões grandes.
+- Com `GTA_EMISSAO_ATIVA=0`, o botão final é **Conferir no SIGEN** e nada é salvo. Com `1`, a revisão exige o checkbox “Entendi que não pode ser desfeita”.
 - O service worker cacheia apenas a casca do PWA. Nunca cacheie `/api/*` (inclui `/api/gta/*`).
 - O composer usa `100dvh` e `env(safe-area-inset-bottom)`; teste no viewport de 390 px.
 

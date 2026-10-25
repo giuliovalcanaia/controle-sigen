@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   addDaysIso,
+  animalSelectionSummary,
   animalsForUep,
   buildGtaInput,
+  buildOriginUnits,
   formatIsoBr,
   gtaStageText,
   gtaStatusText,
+  maskDocumento,
   propertyUep,
 } from "./gta";
-import type { Animal, GtaJobView, PropertyInventory } from "./types";
+import type { Animal, GtaJobView, Inventory, PropertyInventory } from "./types";
 
 function animal(key: string, brinco: string, uep?: string): Animal {
   return {
@@ -174,5 +177,74 @@ describe("GTA no cliente", () => {
     expect(gtaStatusText("conferida")).toBe("Conferida");
     expect(gtaStatusText("incerta")).toBe("Conferir no SIGEN");
     expect(gtaStatusText("salvando")).toBe("Em andamento");
+  });
+
+  it("separa a origem por propriedade e UEP", () => {
+    const inventory: Inventory = {
+      buscadoEm: "2026-10-25T10:00:00.000Z",
+      total: property.animais.length,
+      avisos: [],
+      propriedades: [property],
+    };
+
+    const units = buildOriginUnits(inventory);
+
+    expect(units.map((unit) => [unit.property.codigo, unit.uep])).toEqual([
+      ["42-000165623", "1"],
+      ["42-000165623", "2"],
+    ]);
+    expect(units[0]?.animals.map((item) => item.brinco)).toEqual([
+      "067836",
+      "069054",
+      "702664",
+    ]);
+    expect(units[1]?.animals.map((item) => item.brinco)).toEqual(["685501"]);
+  });
+
+  it("não cria unidade de origem sem animais", () => {
+    const inventory: Inventory = {
+      buscadoEm: "2026-10-25T10:00:00.000Z",
+      total: 0,
+      avisos: [],
+      propriedades: [
+        {
+          codigo: "42-000261676",
+          localidade: "Capivari",
+          municipio: "Doutor Pedrinho",
+          uf: "SC",
+          ueps: ["2"],
+          animais: [],
+        },
+      ],
+    };
+
+    expect(buildOriginUnits(inventory)).toEqual([]);
+  });
+
+  it("mascara CPF e CNPJ sem perder os dois últimos dígitos", () => {
+    expect(maskDocumento("12345678901")).toBe("***.***.***-01");
+    expect(maskDocumento("123.456.789-01")).toBe("***.***.***-01");
+    expect(maskDocumento("12345678000199")).toBe("**.***.***/****-99");
+    expect(maskDocumento("123")).toBe("***");
+  });
+
+  it("resume a seleção de animais pelo nome e pelo manejo", () => {
+    const mimosa = { ...property.animais[0]!, apelido: "Mimosa" };
+    const estrela = { ...property.animais[1]!, apelido: "Estrela" };
+
+    expect(animalSelectionSummary([mimosa, estrela])).toBe(
+      "Mimosa (067836), Estrela (069054)",
+    );
+    expect(animalSelectionSummary([property.animais[2]!])).toBe(
+      "Brinco 685501",
+    );
+    expect(
+      animalSelectionSummary([
+        mimosa,
+        estrela,
+        property.animais[2]!,
+        property.animais[3]!,
+      ]),
+    ).toBe("Mimosa (067836), Estrela (069054), Brinco 685501 e mais 1");
   });
 });

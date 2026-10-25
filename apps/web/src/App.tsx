@@ -4,14 +4,19 @@ import {
   Loader2,
   LogOut,
   RefreshCw,
-  ShieldCheck,
   WifiOff,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "./api";
+import {
+  AssistantAvatar,
+  AssistantBubble,
+  AssistantShell,
+  UserBubble,
+} from "./components/ChatBubble";
 import { Composer } from "./components/Composer";
 import { CowMark } from "./components/CowMark";
-import { GtaFlow } from "./components/GtaFlow";
+import { GtaChat } from "./components/GtaChat";
 import { InventoryCard } from "./components/InventoryCard";
 import { NicknameDialog } from "./components/NicknameDialog";
 import { PhotoDialog } from "./components/PhotoDialog";
@@ -23,6 +28,7 @@ type Message =
   | { id: number; role: "user"; kind: "text"; text: string }
   | { id: number; role: "assistant"; kind: "text"; text: string }
   | { id: number; role: "assistant"; kind: "inventory"; inventory: Inventory }
+  | { id: number; role: "assistant"; kind: "gta"; inventory: Inventory }
   | { id: number; role: "assistant"; kind: "error"; code: string; text: string };
 
 const LIST_RE =
@@ -39,20 +45,17 @@ export default function App() {
   const [status, setStatus] = useState<SigenStatus | null>(null);
   const [editing, setEditing] = useState<Animal | null>(null);
   const [photoAnimal, setPhotoAnimal] = useState<Animal | null>(null);
-  const [gtaOpen, setGtaOpen] = useState(false);
+  const [gtaBusy, setGtaBusy] = useState(false);
+  const [gtaPrompt, setGtaPrompt] = useState<string | null>(null);
+  const [activeGtaId, setActiveGtaId] = useState<number | null>(null);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const lastRequest = useRef("Ver todos os animais");
   const busy = useRef(false);
   const scrollToResult = useRef(false);
-
-  const lastInventory = useMemo(() => {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const message = messages[index];
-      if (message?.kind === "inventory") return message.inventory;
-    }
-    return null;
-  }, [messages]);
+  const inventoryRef = useRef<Inventory | null>(null);
+  const gtaStarting = useRef(false);
+  const gtaTextHandler = useRef<((text: string) => void) | null>(null);
 
   useEffect(() => {
     api
@@ -84,7 +87,7 @@ export default function App() {
     async (text = "Ver todos os animais", options?: { refresh?: boolean }) => {
       // Evita dois logins/consultas se o botão for tocado duas vezes antes
       // do React renderizar o estado de carregamento.
-      if (busy.current) return;
+      if (busy.current || gtaBusy) return;
       busy.current = true;
       lastRequest.current = text;
 
@@ -105,6 +108,7 @@ export default function App() {
 
       try {
         const inventory = await api.getInventory();
+        inventoryRef.current = inventory;
         setStatus((current) =>
           current ? { ...current, state: "active" } : { state: "active", expiresInSeconds: 0 },
         );
@@ -126,21 +130,121 @@ export default function App() {
         setLoading(false);
       }
     },
-    [status?.state],
+    [status?.state, gtaBusy],
   );
 
+  const handleGtaBusyChange = useCallback((busy: boolean) => {
+    setGtaBusy(busy);
+    if (!busy) {
+      gtaTextHandler.current = null;
+      setGtaPrompt(null);
+    }
+  }, []);
+
+  const handleGtaTextRequest = useCallback(
+    (handler: ((text: string) => void) | null, prompt?: string) => {
+      gtaTextHandler.current = handler;
+      setGtaPrompt(handler ? prompt ?? "CPF ou CNPJ do destino" : null);
+    },
+    [],
+  );
+
+  const startGtaFlow = useCallback(
+    async (options?: { userText?: string; restart?: boolean }) => {
+      if (gtaStarting.current) return;
+      if (!options?.restart && gtaBusy) return;
+
+      gtaStarting.current = true;
+      setGtaBusy(true);
+      setGtaPrompt(null);
+      gtaTextHandler.current = null;
+
+      const userText = options?.userText;
+      if (userText) {
+        setMessages((previous) => [
+          ...previous,
+          { id: uid(), role: "user", kind: "text", text: userText },
+        ]);
+      }
+
+      try {
+        let inventory = inventoryRef.current;
+
+        if (!inventory) {
+          setLoadingText(
+            status?.state === "active"
+              ? "Buscando seus animais no SIGEN..."
+              : "Entrando no SIGEN...",
+          );
+          setLoading(true);
+
+          try {
+            inventory = await api.getInventory();
+            inventoryRef.current = inventory;
+            setStatus((current) =>
+              current
+                ? { ...current, state: "active" }
+                : { state: "active", expiresInSeconds: 0 },
+            );
+          } catch (error) {
+            const { code, text } = describeError(error);
+            setMessages((previous) => [
+              ...previous,
+              { id: uid(), role: "assistant", kind: "error", code, text },
+            ]);
+            setGtaBusy(false);
+            if (
+              code === "SESSAO_EXPIRADA" ||
+              code === "CREDENCIAIS_INVALIDAS"
+            ) {
+              setStatus({ state: "logged_out", expiresInSeconds: 0 });
+            }
+            return;
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        if (!inventory) return;
+
+        const messageId = uid();
+        setActiveGtaId(messageId);
+        setMessages((previous) => [
+          ...previous,
+          { id: messageId, role: "assistant", kind: "gta", inventory },
+        ]);
+      } finally {
+        gtaStarting.current = false;
+      }
+    },
+    [gtaBusy, status?.state],
+  );
+
+  const handleGtaRestart = useCallback(() => {
+    void startGtaFlow({ restart: true });
+  }, [startGtaFlow]);
+
   function handleSend(text: string) {
-    if (GTA_RE.test(text)) {
+    if (gtaTextHandler.current) {
+      gtaTextHandler.current(text);
+      return;
+    }
+
+    if (gtaBusy) {
       setMessages((previous) => [
         ...previous,
-        { id: uid(), role: "user", kind: "text", text },
         {
           id: uid(),
           role: "assistant",
           kind: "text",
-          text: "Para emitir uma GTA, toque em “Emitir GTA” no fim da lista de animais. Eu mostro as propriedades, os animais e confiro tudo antes de enviar.",
+          text: "Termine a GTA que está em andamento abaixo.",
         },
       ]);
+      return;
+    }
+
+    if (GTA_RE.test(text)) {
+      void startGtaFlow({ userText: text });
       return;
     }
 
@@ -156,7 +260,7 @@ export default function App() {
         id: uid(),
         role: "assistant",
         kind: "text",
-        text: "Por enquanto eu só sei mostrar os animais. Toque em “Ver todos os animais” que eu busco no SIGEN. Para emitir uma GTA, use o botão no fim da lista.",
+        text: "Posso mostrar os animais ou preparar uma GTA. Use os botões abaixo: “Ver todos os animais” ou “Fazer GTA”.",
       },
     ]);
   }
@@ -181,6 +285,13 @@ export default function App() {
           : message,
       ),
     );
+    if (inventoryRef.current) {
+      inventoryRef.current = withNickname(
+        inventoryRef.current,
+        editing.key,
+        apelido || null,
+      );
+    }
     setEditing(null);
   }
 
@@ -192,6 +303,13 @@ export default function App() {
           : message,
       ),
     );
+    if (inventoryRef.current) {
+      inventoryRef.current = withPhoto(
+        inventoryRef.current,
+        animalKey,
+        fotoVersao,
+      );
+    }
     // Mantém o diálogo aberto já com a foto nova (ou sem foto).
     setPhotoAnimal((current) =>
       current && current.key === animalKey ? { ...current, fotoVersao } : current,
@@ -226,7 +344,8 @@ export default function App() {
     applyPhoto(photoAnimal.key, null);
   }
 
-  async function logout() {    if (logoutBusy) return;
+  async function logout() {
+    if (logoutBusy || gtaBusy) return;
     if (!window.confirm("Encerrar a sessão do SIGEN agora?")) return;
 
     setLogoutBusy(true);
@@ -239,6 +358,10 @@ export default function App() {
       setStatus({ state: "logged_out", expiresInSeconds: 0 });
       setMessages([]);
     } finally {
+      inventoryRef.current = null;
+      gtaTextHandler.current = null;
+      setGtaPrompt(null);
+      setActiveGtaId(null);
       setLogoutBusy(false);
     }
   }
@@ -262,10 +385,12 @@ export default function App() {
           <button
             type="button"
             onClick={() => void logout()}
-            disabled={logoutBusy}
+            disabled={logoutBusy || gtaBusy}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-cream-100/80 transition hover:bg-white/10 disabled:opacity-50"
             aria-label="Sair do SIGEN"
-            title="Sair do SIGEN"
+            title={
+              gtaBusy ? "Termine a GTA antes de sair" : "Sair do SIGEN"
+            }
           >
             {logoutBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogOut className="h-5 w-5" />}
           </button>
@@ -288,7 +413,10 @@ export default function App() {
                 message={message}
                 onEdit={setEditing}
                 onPhoto={setPhotoAnimal}
-                onGta={() => setGtaOpen(true)}
+                onGtaBusy={handleGtaBusyChange}
+                onGtaTextRequest={handleGtaTextRequest}
+                onGtaRestart={handleGtaRestart}
+                gtaActive={message.id === activeGtaId}
                 onRefresh={() => void runList(lastRequest.current, { refresh: true })}
                 onRetry={() => void runList(lastRequest.current, { refresh: true })}
                 refreshing={loading}
@@ -302,8 +430,11 @@ export default function App() {
 
         <Composer
           loading={loading}
+          gtaBusy={gtaBusy}
+          gtaPrompt={gtaPrompt}
           onSend={handleSend}
           onList={() => void runList()}
+          onGta={() => void startGtaFlow()}
         />
       </main>
 
@@ -319,14 +450,6 @@ export default function App() {
         onUpload={uploadPhoto}
         onRemove={removePhoto}
       />
-
-      {lastInventory && (
-        <GtaFlow
-          inventory={lastInventory}
-          open={gtaOpen}
-          onClose={() => setGtaOpen(false)}
-        />
-      )}
     </div>
   );
 }
@@ -362,7 +485,10 @@ function ChatMessage({
   message,
   onEdit,
   onPhoto,
-  onGta,
+  onGtaBusy,
+  onGtaTextRequest,
+  onGtaRestart,
+  gtaActive,
   onRefresh,
   onRetry,
   refreshing,
@@ -370,19 +496,19 @@ function ChatMessage({
   message: Message;
   onEdit: (animal: Animal) => void;
   onPhoto: (animal: Animal) => void;
-  onGta: () => void;
+  onGtaBusy: (busy: boolean) => void;
+  onGtaTextRequest: (
+    handler: ((text: string) => void) | null,
+    prompt?: string,
+  ) => void;
+  onGtaRestart: () => void;
+  gtaActive: boolean;
   onRefresh: () => void;
   onRetry: () => void;
   refreshing: boolean;
 }) {
   if (message.role === "user") {
-    return (
-      <div className="message-enter flex justify-end">
-        <p className="max-w-[85%] rounded-3xl rounded-br-md bg-forest-700 px-4 py-2.5 text-[15px] font-semibold text-white shadow-sm">
-          {message.text}
-        </p>
-      </div>
-    );
+    return <UserBubble>{message.text}</UserBubble>;
   }
 
   if (message.kind === "inventory") {
@@ -392,7 +518,6 @@ function ChatMessage({
           inventory={message.inventory}
           onEdit={onEdit}
           onPhoto={onPhoto}
-          onGta={onGta}
           onRefresh={onRefresh}
           refreshing={refreshing}
         />
@@ -400,11 +525,22 @@ function ChatMessage({
     );
   }
 
+  if (message.kind === "gta") {
+    return (
+      <GtaChat
+        inventory={message.inventory}
+        active={gtaActive}
+        onBusyChange={onGtaBusy}
+        onTextRequest={onGtaTextRequest}
+        onRestart={onGtaRestart}
+      />
+    );
+  }
+
   if (message.kind === "error") {
     return (
-      <div className="message-enter flex gap-2.5">
-        <AssistantAvatar />
-        <div className="max-w-[34rem] rounded-3xl rounded-tl-md border border-red-200 bg-red-50 px-4 py-3 text-red-900 shadow-sm">
+      <AssistantShell>
+        <div className="rounded-3xl rounded-tl-md border border-red-200 bg-red-50 px-4 py-3 text-red-900 shadow-sm">
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
@@ -420,25 +556,20 @@ function ChatMessage({
             </div>
           </div>
         </div>
-      </div>
+      </AssistantShell>
     );
   }
 
-  return (
-    <div className="message-enter flex gap-2.5">
-      <AssistantAvatar />
-      <p className="max-w-[34rem] rounded-3xl rounded-tl-md border border-cream-200 bg-cream-50 px-4 py-3 text-[15px] leading-relaxed text-bark-700 shadow-sm">
-        {message.text}
-      </p>
-    </div>
-  );
+  return <AssistantBubble>{message.text}</AssistantBubble>;
 }
 
 function LoadingBubble({ text }: { text: string }) {
   return (
-    <div className="message-enter flex gap-2.5" aria-live="polite">
-      <AssistantAvatar />
-      <div className="rounded-3xl rounded-tl-md border border-cream-200 bg-cream-50 px-4 py-3 shadow-sm">
+    <AssistantShell>
+      <div
+        className="rounded-3xl rounded-tl-md border border-cream-200 bg-cream-50 px-4 py-3 shadow-sm"
+        aria-live="polite"
+      >
         <p className="flex items-center gap-2 text-sm font-semibold text-bark-700">
           <Loader2 className="h-4 w-4 animate-spin text-forest-700" />
           {text}
@@ -447,18 +578,7 @@ function LoadingBubble({ text }: { text: string }) {
           Estou consultando o SIGEN. Isso pode levar alguns segundos.
         </p>
       </div>
-    </div>
-  );
-}
-
-function AssistantAvatar() {
-  return (
-    <div
-      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-forest-700 text-white shadow-sm"
-      aria-hidden="true"
-    >
-      <ShieldCheck className="h-5 w-5" />
-    </div>
+    </AssistantShell>
   );
 }
 

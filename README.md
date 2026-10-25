@@ -38,15 +38,17 @@ Celular (PWA) ──Tailscale──▶ tailscale serve (HTTPS)
 
 ## Emitir GTA
 
-1. Toque em **Ver todos os animais**.
-2. No fim do cartão do inventário, toque em **Emitir GTA**.
-3. Escolha a **propriedade de origem** (a que tem animais).
-4. Escolha o **destino**: outra propriedade sua ou **Outra pessoa** (busca por CPF/CNPJ).
-5. Marque os **animais** e toque em continuar.
-6. Confira **finalidade** (padrão ENGORDA), **data da saída** (hoje) e **validade** (+3 dias). Nota fiscal, placa, lacre e observação são opcionais.
-7. Na revisão, confira tudo e toque em **Emitir GTA**.
+O fluxo acontece **dentro do chat**, em etapas:
 
-O app usa os valores fixos da tela oficial: **Dentro do Estado**, destino **Propriedade** e tipo **Normal**. O transporte vem como **RODOVIÁRIO** e pode ser trocado.
+1. Toque em **Fazer GTA**, ao lado de **Ver todos os animais** (ou digite “GTA”).
+2. O app busca o inventário, se ainda não tiver, e pergunta **quais animais** vão sair.
+3. Escolha a **propriedade/UEP** e marque um ou mais animais da mesma origem.
+4. Digite o **CPF/CNPJ do destino** no campo de mensagem. Ele é usado só para buscar a propriedade, não fica salvo e aparece mascarado no histórico.
+5. Escolha a **UEP de destino**.
+6. Responda **finalidade** (padrão ENGORDA), **data da saída** (hoje), **validade** (+3 dias) e **transporte** (padrão RODOVIÁRIO).
+7. Na revisão, confira tudo e toque em **Emitir GTA** (ou **Conferir no SIGEN** com a emissão desligada).
+
+Nota fiscal, placa, lacre e observação ficam numa seção opcional da revisão. O app usa os valores fixos da tela oficial: **Dentro do Estado**, destino **Propriedade** e tipo **Normal**.
 
 ### Segurança
 
@@ -251,7 +253,7 @@ Com `sudo tailscale set --operator=$USER`, o `serve` passa a ser configurado sem
 - A senha do SIGEN nunca vai para o navegador do produtor; fica no servidor (`.env` ou secret do Docker) ou apenas na sessão salva localmente.
 - As fotos dos animais ficam em `data/fotos/`, no mesmo volume do SQLite. Elas saem do celular já sem metadados e nunca vão para o SIGEN, para o GitHub ou para a imagem Docker.
 - Os PDFs das GTAs ficam em `data/gta/`, com permissão `600`, fora do git e servidos com `Cache-Control: no-store`.
-- O CPF do produtor é lido da sessão do SIGEN e usado só no servidor. O CPF de um destino de terceiro é enviado apenas para a busca e não é gravado.
+- O CPF do produtor é lido da sessão do SIGEN e usado só no servidor. O CPF de um destino de terceiro é digitado no chat, usado só para buscar a UEP e emitir, e não é gravado; no histórico, aparece mascarado.
 - Proteja o `.env` com `chmod 600 .env`. Evite rodar `docker compose config` em logs/chats: ele imprime o conteúdo do `.env`, incluindo a senha.
 - O app não é oficial. A listagem é de leitura; a GTA é uma automação da tela oficial, com confirmação e sem retentativa automática.
 
@@ -267,7 +269,7 @@ apps/api/
   scripts/            login manual, verificação e check da tela de GTA
 apps/web/             PWA React + Vite + Tailwind
   src/photo.ts        recorte e redução da foto no navegador
-  src/components/GtaFlow.tsx  fluxo de emissão em etapas
+  src/components/GtaChat.tsx  conversa de emissão em etapas
 docs/gta-fluxo.md     mapa técnico da tela de GTA (sem PII)
 fixtures/inventory/   fixtures sanitizadas (versionadas)
 fixtures/private/     PDFs e capturas reais (gitignored)

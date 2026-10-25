@@ -1,4 +1,4 @@
-import { ListChecks, Mic, Send, Square } from "lucide-react";
+import { Mic, Send, Square, Truck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   createSpeechRecognition,
@@ -8,16 +8,29 @@ import {
 
 type Props = {
   loading: boolean;
+  gtaBusy: boolean;
+  gtaPrompt: string | null;
   onSend: (text: string) => void;
   onList: () => void;
+  onGta: () => void;
 };
 
-export function Composer({ loading, onSend, onList }: Props) {
+export function Composer({
+  loading,
+  gtaBusy,
+  gtaPrompt,
+  onSend,
+  onList,
+  onGta,
+}: Props) {
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
   const [voiceAvailable, setVoiceAvailable] = useState(false);
   const recognition = useRef<SpeechRecognitionLike | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const waitingGta = gtaBusy && !gtaPrompt;
+  const inputDisabled = loading || waitingGta;
 
   useEffect(() => {
     setVoiceAvailable(speechSupported());
@@ -26,9 +39,13 @@ export function Composer({ loading, onSend, onList }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    if (gtaPrompt) inputRef.current?.focus();
+  }, [gtaPrompt]);
+
   function submit() {
     const value = text.trim();
-    if (!value || loading) return;
+    if (!value || inputDisabled) return;
     onSend(value);
     setText("");
     recognition.current?.stop();
@@ -69,15 +86,26 @@ export function Composer({ loading, onSend, onList }: Props) {
   return (
     <div className="safe-bottom border-t border-cream-200/80 bg-cream-50/95 px-4 pt-3 backdrop-blur sm:px-5">
       <div className="mx-auto w-full max-w-2xl">
-        <button
-          type="button"
-          onClick={onList}
-          disabled={loading}
-          className="mb-2.5 inline-flex h-11 items-center gap-2 rounded-full border border-forest-700/15 bg-white px-4 text-sm font-extrabold text-forest-800 shadow-sm transition active:scale-[0.98] disabled:opacity-50"
-        >
-          <ListChecks className="h-4 w-4" />
-          Ver todos os animais
-        </button>
+        <div className="mb-2.5 flex gap-2">
+          <button
+            type="button"
+            onClick={onList}
+            disabled={loading || gtaBusy}
+            className="inline-flex h-11 min-w-0 flex-[1.7] items-center justify-center gap-1 rounded-full border border-forest-700/15 bg-white px-2 text-[13px] font-extrabold text-forest-800 shadow-sm transition active:scale-[0.98] disabled:opacity-50"
+          >
+            <span className="truncate">Ver todos os animais</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onGta}
+            disabled={loading || gtaBusy}
+            className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-full border border-forest-700/15 bg-white px-2 text-[13px] font-extrabold text-forest-800 shadow-sm transition active:scale-[0.98] disabled:opacity-50"
+          >
+            <Truck className="h-4 w-4 shrink-0" />
+            <span className="truncate">Fazer GTA</span>
+          </button>
+        </div>
 
         <form
           onSubmit={(event) => {
@@ -90,18 +118,28 @@ export function Composer({ loading, onSend, onList }: Props) {
             ref={inputRef}
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder={listening ? "Ouvindo..." : "Escreva ou fale..."}
-            aria-label="Mensagem"
-            enterKeyHint="send"
+            placeholder={
+              gtaPrompt ??
+              (waitingGta
+                ? "Responda na GTA"
+                : listening
+                  ? "Ouvindo..."
+                  : "Escreva ou fale...")
+            }
+            aria-label={gtaPrompt ?? "Mensagem"}
+            enterKeyHint={gtaPrompt ? "search" : "send"}
             autoComplete="off"
-            className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base text-bark-700 outline-none placeholder:text-bark-500/70"
+            inputMode={gtaPrompt ? "numeric" : "text"}
+            maxLength={gtaPrompt ? 18 : undefined}
+            disabled={inputDisabled}
+            className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base text-bark-700 outline-none placeholder:text-bark-500/70 disabled:opacity-60"
           />
 
-          {voiceAvailable && (
+          {voiceAvailable && !gtaPrompt && (
             <button
               type="button"
               onClick={toggleVoice}
-              disabled={loading}
+              disabled={inputDisabled}
               className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-50 ${
                 listening
                   ? "bg-amber-500 text-white"
@@ -116,7 +154,7 @@ export function Composer({ loading, onSend, onList }: Props) {
 
           <button
             type="submit"
-            disabled={loading || text.trim().length === 0}
+            disabled={inputDisabled || text.trim().length === 0}
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-forest-700 text-white transition active:scale-95 disabled:bg-cream-200 disabled:text-bark-500/60"
             aria-label="Enviar"
           >
