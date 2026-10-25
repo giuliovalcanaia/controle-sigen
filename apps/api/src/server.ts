@@ -1,13 +1,15 @@
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
-import { openNicknameStore } from "./db.js";
+import { openAnimalStore } from "./db.js";
+import { openPhotoStore } from "./photos.js";
 import type { InventoryService } from "./routes.js";
 import { SigenClient } from "./sigen/client.js";
 import { getMockInventory } from "./sigen/mock.js";
 import { SigenSession } from "./sigen/session.js";
 import type { SigenStatus } from "./sigen/types.js";
 
-const nicknames = openNicknameStore(config.databasePath);
+const store = openAnimalStore(config.databasePath);
+const photos = openPhotoStore(config.photosDir, store);
 
 let session: SigenSession | null = null;
 let inventory: InventoryService;
@@ -27,7 +29,7 @@ if (config.mock) {
 }
 
 const app = await buildApp(
-  { inventory, nicknames, getStatus, logout },
+  { inventory, store, photos, getStatus, logout },
   { webDist: config.webDist },
 );
 
@@ -38,7 +40,7 @@ async function shutdown(signal: string) {
   app.log.info({ signal }, "Encerrando");
   await app.close().catch(() => undefined);
   await session?.close().catch(() => undefined);
-  nicknames.close();
+  store.close();
   process.exit(0);
 }
 
@@ -53,6 +55,6 @@ try {
   );
 } catch (error) {
   app.log.error(error);
-  nicknames.close();
+  store.close();
   process.exit(1);
 }

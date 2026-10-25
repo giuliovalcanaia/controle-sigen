@@ -14,7 +14,7 @@ import { CowMark } from "./components/CowMark";
 import { InventoryCard } from "./components/InventoryCard";
 import { NicknameDialog } from "./components/NicknameDialog";
 import type { Animal, Inventory, SigenStatus } from "./types";
-import { describeError, withNickname } from "./utils";
+import { describeError, withNickname, withPhoto } from "./utils";
 
 type Message =
   | { id: number; role: "user"; kind: "text"; text: string }
@@ -156,8 +156,30 @@ export default function App() {
     setEditing(null);
   }
 
-  async function logout() {
-    if (logoutBusy) return;
+  const applyPhoto = useCallback((animalKey: string, fotoVersao: number | null) => {
+    setMessages((previous) =>
+      previous.map((message) =>
+        message.kind === "inventory"
+          ? { ...message, inventory: withPhoto(message.inventory, animalKey, fotoVersao) }
+          : message,
+      ),
+    );
+  }, []);
+
+  async function removePhoto() {
+    if (!editing) return;
+
+    try {
+      await api.removePhoto(editing.key);
+    } catch (error) {
+      if (error instanceof ApiError) throw new Error(error.message);
+      throw new Error("Não consegui remover a foto. Tente de novo.");
+    }
+
+    applyPhoto(editing.key, null);
+  }
+
+  async function logout() {    if (logoutBusy) return;
     if (!window.confirm("Encerrar a sessão do SIGEN agora?")) return;
 
     setLogoutBusy(true);
@@ -218,6 +240,7 @@ export default function App() {
                 key={message.id}
                 message={message}
                 onEdit={setEditing}
+                onPhotoSaved={applyPhoto}
                 onRefresh={() => void runList(lastRequest.current, { refresh: true })}
                 onRetry={() => void runList(lastRequest.current, { refresh: true })}
                 refreshing={loading}
@@ -240,6 +263,7 @@ export default function App() {
         animal={editing}
         onClose={() => setEditing(null)}
         onSave={saveNickname}
+        onRemovePhoto={removePhoto}
       />
     </div>
   );
@@ -275,12 +299,14 @@ function Welcome({ onList }: { onList: () => void }) {
 function ChatMessage({
   message,
   onEdit,
+  onPhotoSaved,
   onRefresh,
   onRetry,
   refreshing,
 }: {
   message: Message;
   onEdit: (animal: Animal) => void;
+  onPhotoSaved: (animalKey: string, fotoVersao: number) => void;
   onRefresh: () => void;
   onRetry: () => void;
   refreshing: boolean;
@@ -301,6 +327,7 @@ function ChatMessage({
         <InventoryCard
           inventory={message.inventory}
           onEdit={onEdit}
+          onPhotoSaved={onPhotoSaved}
           onRefresh={onRefresh}
           refreshing={refreshing}
         />

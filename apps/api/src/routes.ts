@@ -1,7 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import type { NicknameStore } from "./db.js";
-import { mergeNicknames } from "./sigen/inventory.js";
+import type { AnimalStore } from "./db.js";
+import { isJpeg, type PhotoStore } from "./photos.js";
+import { mergeExtras } from "./sigen/inventory.js";
 import type { Inventory, SigenError, SigenStatus } from "./sigen/types.js";
 
 export type InventoryService = {
@@ -10,7 +11,8 @@ export type InventoryService = {
 
 export type RouteDeps = {
   inventory: InventoryService;
-  nicknames: NicknameStore;
+  store: AnimalStore;
+  photos: PhotoStore;
   getStatus(): SigenStatus;
   logout(): Promise<void>;
 };
@@ -21,9 +23,45 @@ const nicknameSchema = z.object({
 
 const keySchema = z.string().regex(/^[A-Za-z0-9-]{1,64}$/);
 
+/** O navegador já reduz a foto para 512×512; 1,5 MB é folga de sobra. */
+const PHOTO_BODY_LIMIT = 1_500_000;
+
+const CHAVE_INVALIDA = {
+  code: "DADOS_INVALIDOS",
+  message: "Identificador de animal inválido.",
+};
+
+const FORMATO_INVALIDO = {
+  code: "FORMATO_INVALIDO",
+  message: "Envie uma foto em JPEG.",
+};
+
+/** Erros do Fastify que devem chegar ao app em português. */
+const FASTIFY_ERRORS: Record<string, { code: string; message: string; statusCode: number }> = {
+  FST_ERR_CTP_BODY_TOO_LARGE: {
+    code: "FOTO_MUITO_GRANDE",
+    message: "A foto é grande demais. Escolha uma imagem menor.",
+    statusCode: 413,
+  },
+  FST_ERR_CTP_INVALID_MEDIA_TYPE: {
+    ...FORMATO_INVALIDO,
+    statusCode: 415,
+  },
+};
+
 export async function registerRoutes(app: FastifyInstance, deps: RouteDeps) {
+  // A foto sobe como bytes crus: o cliente converte para JPEG antes de enviar.
+  app.addContentTypeParser(
+    "image/jpeg",
+    { parseAs: "buffer", bodyLimit: PHOTO_BODY_LIMIT },
+    (_request, body, done) => {
+      done(null, body);
+    },
+  );
+
   app.addHook("onSend", async (request, reply, payload) => {
-    if (request.url.startsWith("/api/")) {
+    // Fotos têm URL versionada e podem ser cacheadas; o resto da API, nunca.
+    if (request.url.startsWith("/api/") && !request.url.startsWith("/api/photos/")) {
       reply.header("Cache-Control", "no-store");
     }
     return payload;
@@ -35,7 +73,11 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps) {
 
   app.get("/api/animals", async (_request, reply) => {
     const inventory = await deps.inventory.getInventory();
-    const merged = mergeNicknames(inventory, deps.nicknames.all());
+    const merged = mergeExtras(
+      inventory,
+      deps.store.nicknames(),
+      deps.store.photoVersions(),
+    );
     reply.header("Cache-Control", "no-store");
     return merged;
   });
@@ -45,10 +87,7 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps) {
     async (request, reply) => {
       const key = keySchema.safeParse(request.params.animalKey);
       if (!key.success) {
-        return reply.code(400).send({
-          code: "DADOS_INVALIDOS",
-          message: "Identificador de animal inválido.",
-        });
+        return reply.code(400).send(CHAVE_INVALIDA);
       }
 
       const body = nicknameSchema.safeParse(request.body);
@@ -61,12 +100,68 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps) {
 
       const apelido = body.data.apelido;
       if (apelido.length === 0) {
-        deps.nicknames.remove(key.data);
+        deps.store.removeNickname(key.data);
         return { ok: true, apelido: null };
       }
 
-      deps.nicknames.set(key.data, apelido);
+      deps.store.setNickname(key.data, apelido);
       return { ok: true, apelido };
+    },
+  );
+
+  app.get<{ Params: { animalKey: string } }>(
+    "/api/photos/:animalKey",
+    async (request, reply) => {
+      const key = keySchema.safeParse(request.params.animalKey);
+      if (!key.success) {
+        return reply.code(400).send(CHAVE_INVALIDA);
+      }
+
+      const photo = deps.photos.read(key.data);
+      if (!photo) {
+        return reply.code(404).send({
+          code: "FOTO_NAO_ENCONTRADA",
+          message: "Este animal ainda não tem foto.",
+        });
+      }
+
+      // A URL sempre traz ?v=<versão>, então trocar a foto troca a URL.
+      return reply
+        .header("Content-Type", "image/jpeg")
+        .header("Cache-Control", "public, max-age=31536000, immutable")
+        .header("X-Content-Type-Options", "nosniff")
+        .send(photo.data);
+    },
+  );
+
+  app.put<{ Params: { animalKey: string } }>(
+    "/api/photos/:animalKey",
+    { bodyLimit: PHOTO_BODY_LIMIT },
+    async (request, reply) => {
+      const key = keySchema.safeParse(request.params.animalKey);
+      if (!key.success) {
+        return reply.code(400).send(CHAVE_INVALIDA);
+      }
+
+      if (!Buffer.isBuffer(request.body) || !isJpeg(request.body)) {
+        return reply.code(415).send(FORMATO_INVALIDO);
+      }
+
+      const fotoVersao = deps.photos.save(key.data, request.body);
+      return { ok: true, fotoVersao };
+    },
+  );
+
+  app.delete<{ Params: { animalKey: string } }>(
+    "/api/photos/:animalKey",
+    async (request, reply) => {
+      const key = keySchema.safeParse(request.params.animalKey);
+      if (!key.success) {
+        return reply.code(400).send(CHAVE_INVALIDA);
+      }
+
+      deps.photos.remove(key.data);
+      return { ok: true };
     },
   );
 
@@ -76,6 +171,16 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps) {
   });
 
   app.setErrorHandler((error, request, reply) => {
+    const failure = error as { code?: string; message?: string };
+    const mapped = failure.code ? FASTIFY_ERRORS[failure.code] : undefined;
+    if (mapped) {
+      request.log.warn({ code: failure.code }, failure.message);
+      return reply.code(mapped.statusCode).send({
+        code: mapped.code,
+        message: mapped.message,
+      });
+    }
+
     const sigenError = error as Partial<SigenError> & { code?: string };
     if (sigenError.code && typeof sigenError.statusCode === "number") {
       request.log.warn(

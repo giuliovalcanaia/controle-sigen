@@ -14,7 +14,7 @@
     "dev:web": "npm run dev -w @sigen/web",
     "build": "npm run build -w @sigen/api && npm run build -w @sigen/web",
     "start": "npm run start -w @sigen/api",
-    "test": "npm run test -w @sigen/api",
+    "test": "npm run test -w @sigen/api && npm run test -w @sigen/web",
     "typecheck": "npm run typecheck -w @sigen/api && npm run typecheck -w @sigen/web",
     "sigen:login": "npm run sigen:login -w @sigen/api",
     "sigen:check": "npm run sigen:check -w @sigen/api",
