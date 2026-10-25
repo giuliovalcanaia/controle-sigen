@@ -1,4 +1,4 @@
-import { Loader2, Trash2, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Animal } from "../types";
 
@@ -6,14 +6,12 @@ type Props = {
   animal: Animal | null;
   onClose: () => void;
   onSave: (apelido: string | null) => Promise<void>;
-  onRemovePhoto: () => Promise<void>;
 };
 
-export function NicknameDialog({ animal, onClose, onSave, onRemovePhoto }: Props) {
+export function NicknameDialog({ animal, onClose, onSave }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
-  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -21,7 +19,6 @@ export function NicknameDialog({ animal, onClose, onSave, onRemovePhoto }: Props
       setValue(animal.apelido ?? "");
       setError("");
       setSaving(false);
-      setRemoving(false);
       dialogRef.current?.showModal();
     } else {
       dialogRef.current?.close();
@@ -29,7 +26,7 @@ export function NicknameDialog({ animal, onClose, onSave, onRemovePhoto }: Props
   }, [animal]);
 
   async function save(apelido: string | null) {
-    if (saving || removing) return;
+    if (saving) return;
     setSaving(true);
     setError("");
     try {
@@ -42,30 +39,15 @@ export function NicknameDialog({ animal, onClose, onSave, onRemovePhoto }: Props
     }
   }
 
-  async function removePhoto() {
-    if (saving || removing) return;
-    setRemoving(true);
-    setError("");
-    try {
-      await onRemovePhoto();
-      dialogRef.current?.close();
-      onClose();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Não consegui remover a foto.");
-      setRemoving(false);
-    }
-  }
-
   const willRemove = value.trim().length === 0 && Boolean(animal?.apelido);
-  const canSubmit = saving || removing ? false : value.trim().length > 0 || Boolean(animal?.apelido);
-  const busy = saving || removing;
+  const canSubmit = saving ? false : value.trim().length > 0 || Boolean(animal?.apelido);
 
   return (
     <dialog
       ref={dialogRef}
       onCancel={(event) => {
         event.preventDefault();
-        if (!busy) onClose();
+        if (!saving) onClose();
       }}
       className="m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border border-cream-200 bg-cream-50 p-0 text-bark-700 shadow-2xl backdrop:bg-black/40 backdrop:backdrop-blur-[2px]"
       aria-labelledby="nickname-title"
@@ -84,7 +66,7 @@ export function NicknameDialog({ animal, onClose, onSave, onRemovePhoto }: Props
         <header className="flex items-start justify-between gap-3 px-5 pt-5">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-forest-700">
-              Editar animal
+              Apelido do animal
             </p>
             <h2 id="nickname-title" className="mt-0.5 text-2xl font-black">
               {animal ? `Brinco ${animal.brinco}` : ""}
@@ -95,7 +77,7 @@ export function NicknameDialog({ animal, onClose, onSave, onRemovePhoto }: Props
           </div>
           <button
             type="button"
-            onClick={() => !busy && onClose()}
+            onClick={() => !saving && onClose()}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-bark-500 transition hover:bg-cream-200"
             aria-label="Fechar"
           >
@@ -127,22 +109,6 @@ export function NicknameDialog({ animal, onClose, onSave, onRemovePhoto }: Props
               {error}
             </p>
           )}
-
-          {animal?.fotoVersao != null && (
-            <button
-              type="button"
-              onClick={() => void removePhoto()}
-              disabled={busy}
-              className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 text-sm font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-50"
-            >
-              {removing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
-              Remover foto
-            </button>
-          )}
         </div>
 
         <footer className="flex flex-col gap-2 px-5 pb-5 pt-4">
@@ -159,7 +125,7 @@ export function NicknameDialog({ animal, onClose, onSave, onRemovePhoto }: Props
 
           <button
             type="button"
-            disabled={busy}
+            disabled={saving}
             onClick={onClose}
             className="h-11 rounded-2xl text-sm font-bold text-bark-500 transition hover:bg-cream-200 disabled:opacity-50"
           >

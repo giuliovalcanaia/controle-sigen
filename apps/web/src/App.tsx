@@ -13,6 +13,8 @@ import { Composer } from "./components/Composer";
 import { CowMark } from "./components/CowMark";
 import { InventoryCard } from "./components/InventoryCard";
 import { NicknameDialog } from "./components/NicknameDialog";
+import { PhotoDialog } from "./components/PhotoDialog";
+import { preparePhoto } from "./photo";
 import type { Animal, Inventory, SigenStatus } from "./types";
 import { describeError, withNickname, withPhoto } from "./utils";
 
@@ -34,6 +36,7 @@ export default function App() {
   const [loadingText, setLoadingText] = useState("Buscando os animais no SIGEN...");
   const [status, setStatus] = useState<SigenStatus | null>(null);
   const [editing, setEditing] = useState<Animal | null>(null);
+  const [photoAnimal, setPhotoAnimal] = useState<Animal | null>(null);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const lastRequest = useRef("Ver todos os animais");
@@ -164,19 +167,38 @@ export default function App() {
           : message,
       ),
     );
+    // Mantém o diálogo aberto já com a foto nova (ou sem foto).
+    setPhotoAnimal((current) =>
+      current && current.key === animalKey ? { ...current, fotoVersao } : current,
+    );
   }, []);
 
-  async function removePhoto() {
-    if (!editing) return;
+  async function uploadPhoto(file: File) {
+    if (!photoAnimal) return;
+
+    // Recorta e reduz no celular antes de subir.
+    const foto = await preparePhoto(file);
 
     try {
-      await api.removePhoto(editing.key);
+      const { fotoVersao } = await api.setPhoto(photoAnimal.key, foto);
+      applyPhoto(photoAnimal.key, fotoVersao);
+    } catch (error) {
+      if (error instanceof ApiError) throw new Error(error.message);
+      throw new Error("Não consegui enviar a foto. Tente de novo.");
+    }
+  }
+
+  async function removePhoto() {
+    if (!photoAnimal) return;
+
+    try {
+      await api.removePhoto(photoAnimal.key);
     } catch (error) {
       if (error instanceof ApiError) throw new Error(error.message);
       throw new Error("Não consegui remover a foto. Tente de novo.");
     }
 
-    applyPhoto(editing.key, null);
+    applyPhoto(photoAnimal.key, null);
   }
 
   async function logout() {    if (logoutBusy) return;
@@ -240,7 +262,7 @@ export default function App() {
                 key={message.id}
                 message={message}
                 onEdit={setEditing}
-                onPhotoSaved={applyPhoto}
+                onPhoto={setPhotoAnimal}
                 onRefresh={() => void runList(lastRequest.current, { refresh: true })}
                 onRetry={() => void runList(lastRequest.current, { refresh: true })}
                 refreshing={loading}
@@ -263,7 +285,13 @@ export default function App() {
         animal={editing}
         onClose={() => setEditing(null)}
         onSave={saveNickname}
-        onRemovePhoto={removePhoto}
+      />
+
+      <PhotoDialog
+        animal={photoAnimal}
+        onClose={() => setPhotoAnimal(null)}
+        onUpload={uploadPhoto}
+        onRemove={removePhoto}
       />
     </div>
   );
@@ -299,14 +327,14 @@ function Welcome({ onList }: { onList: () => void }) {
 function ChatMessage({
   message,
   onEdit,
-  onPhotoSaved,
+  onPhoto,
   onRefresh,
   onRetry,
   refreshing,
 }: {
   message: Message;
   onEdit: (animal: Animal) => void;
-  onPhotoSaved: (animalKey: string, fotoVersao: number) => void;
+  onPhoto: (animal: Animal) => void;
   onRefresh: () => void;
   onRetry: () => void;
   refreshing: boolean;
@@ -327,7 +355,7 @@ function ChatMessage({
         <InventoryCard
           inventory={message.inventory}
           onEdit={onEdit}
-          onPhotoSaved={onPhotoSaved}
+          onPhoto={onPhoto}
           onRefresh={onRefresh}
           refreshing={refreshing}
         />

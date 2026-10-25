@@ -61,7 +61,7 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 
 - O número em destaque é o manejo; o oficial só aparece em detalhes (se aparecer).
 - Animais com apelido vêm primeiro, em ordem alfabética; os demais por brinco.
-- O círculo ao lado do nome é o botão da foto: toque abre a galeria. Sem foto, mostra a inicial (ou o ícone de boi quando não há apelido).
+- O círculo ao lado do nome é o botão da foto: toque abre o diálogo com ver em tela cheia, trocar e remover. Sem foto, mostra a inicial (ou o ícone de boi quando não há apelido).
 - A redução para 512×512 acontece no navegador (`src/photo.ts`); nunca suba o original.
 - Textos em português simples, botões grandes, uma ação principal.
 - O service worker cacheia apenas a casca do PWA. Nunca cacheie `/api/*`.

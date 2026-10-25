@@ -28,10 +28,10 @@ Celular (PWA) ──Tailscale──▶ tailscale serve (HTTPS)
 
 ## Fotos dos animais
 
-- Toque no círculo ao lado do nome para escolher uma foto da galeria (no celular, o próprio sistema também oferece a câmera).
+- Toque no círculo ao lado do nome para abrir o diálogo da foto.
+- No diálogo: **Ver maior** (tela cheia), **Adicionar/Trocar foto** (galeria ou câmera) e **Remover foto**.
 - A foto é recortada no centro e reduzida para 512×512 **no celular**, antes de subir. Isso economiza rede e remove o EXIF da imagem (inclusive a localização).
 - Ela fica no servidor, em `data/fotos/<brinco oficial>.jpg`, e aparece em qualquer aparelho — não some ao limpar o navegador.
-- Para trocar, toque de novo no círculo. Para remover, use o lápis do animal e o botão **Remover foto**.
 - A foto não é do SIGEN: é um dado local, como o apelido. Nada é enviado para o CIDASC.
 
 ## Requisitos
