@@ -45,8 +45,9 @@ O fluxo acontece **dentro do chat**, em etapas:
 3. A lista mostra **todos os animais**, agrupados por propriedade/UEP. Marque um ou mais; o primeiro marcado define a origem (a GTA tem uma só) e **Trocar** limpa a seleção.
 4. Digite o **CPF/CNPJ do destino** no campo de mensagem. Ele é usado só para buscar a propriedade, não fica salvo e aparece mascarado no histórico.
 5. Escolha a **UEP de destino**.
-6. Confira o cartão **Finalidade e datas**: finalidade (ENGORDA), saída (hoje), validade (+3 dias) e transporte (RODOVIÁRIO) já vêm preenchidos. Toque em um item para alterar. Depois responda **nota fiscal** e **placa**, que podem ficar em branco: basta tocar em **Continuar** sem preencher.
-7. Na revisão, confira tudo e toque em **Emitir GTA** (ou **Conferir no SIGEN** com a emissão desligada).
+6. Confira o cartão **Finalidade e datas**: finalidade (ENGORDA), saída (hoje), validade (+3 dias) e transporte (RODOVIÁRIO) já vêm preenchidos. Toque em um item para alterar.
+7. O app pergunta se você quer informar **nota fiscal** e **placa**. Se disser **Não**, vai direto à revisão. Se disser **Sim**, responda as duas (podem ficar em branco: basta tocar em **Continuar** sem preencher).
+8. Na revisão, confira tudo e toque em **Emitir GTA** (ou **Conferir no SIGEN** com a emissão desligada).
 
 Lacre e observação ficam numa seção opcional da revisão. O app usa os valores fixos da tela oficial: **Dentro do Estado**, destino **Propriedade** e tipo **Normal**.
 

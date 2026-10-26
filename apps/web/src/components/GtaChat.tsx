@@ -39,6 +39,7 @@ type Phase =
   | "cpf"
   | "uep"
   | "datas"
+  | "extras"
   | "notaFiscal"
   | "placa"
   | "revisao"
@@ -466,6 +467,22 @@ export function GtaChat({
         dataSaida,
       )} · Validade: ${formatIsoBr(dataValidade)} · Transporte: ${transporte}.`,
     );
+    appendAssistant("Quer informar a nota fiscal ou a placa do veículo?");
+    setPhase("extras");
+  }
+
+  function answerExtras(informar: boolean) {
+    if (!informar) {
+      setNotaFiscal("");
+      setPlaca("");
+      appendUser("Não, pular.");
+      appendAssistant("Confira antes de continuar.");
+      setConfirmed(false);
+      setPhase("revisao");
+      return;
+    }
+
+    appendUser("Sim, informar.");
     appendAssistant("Qual o número da nota fiscal?");
     setPhase("notaFiscal");
   }
@@ -540,10 +557,15 @@ export function GtaChat({
         appendAssistant("Qual UEP vai receber os animais?");
         setPhase("uep");
         break;
-      case "notaFiscal":
+      case "extras":
         appendUser("Voltar.");
         appendAssistant("Confira os dados da GTA.");
         setPhase("datas");
+        break;
+      case "notaFiscal":
+        appendUser("Voltar.");
+        appendAssistant("Quer informar a nota fiscal ou a placa do veículo?");
+        setPhase("extras");
         break;
       case "placa":
         appendUser("Voltar.");
@@ -552,8 +574,8 @@ export function GtaChat({
         break;
       case "revisao":
         appendUser("Voltar.");
-        appendAssistant("Qual a placa do veículo?");
-        setPhase("placa");
+        appendAssistant("Quer informar a nota fiscal ou a placa do veículo?");
+        setPhase("extras");
         break;
       default:
         break;
@@ -678,6 +700,8 @@ export function GtaChat({
         return "UEP de destino";
       case "datas":
         return "Finalidade e datas";
+      case "extras":
+        return "Nota fiscal e placa";
       case "notaFiscal":
         return "Nota fiscal";
       case "placa":
@@ -1095,6 +1119,33 @@ export function GtaChat({
                 >
                   Continuar
                   <ChevronRight className="h-5 w-5" />
+                </button>
+
+                <StepLinks onBack={goBack} onCancel={cancel} />
+              </div>
+            )}
+
+            {phase === "extras" && (
+              <div>
+                <p className="text-sm text-bark-500">
+                  Os dois são opcionais. Se não tiver, pode pular.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => answerExtras(true)}
+                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white"
+                >
+                  <Check className="h-5 w-5" />
+                  Sim, informar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => answerExtras(false)}
+                  className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-2xl border border-cream-200 bg-white px-5 text-base font-bold text-bark-700"
+                >
+                  Não, pular
                 </button>
 
                 <StepLinks onBack={goBack} onCancel={cancel} />

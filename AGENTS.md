@@ -81,9 +81,9 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 - Animais com apelido vêm primeiro, em ordem alfabética; os demais por brinco.
 - O círculo ao lado do nome é o botão da foto: toque abre o diálogo com ver em tela cheia, trocar e remover. Sem foto, mostra a inicial (ou o ícone de boi quando não há apelido).
 - A redução para 512×512 acontece no navegador (`src/photo.ts`); nunca suba o original.
-- O botão **Fazer GTA** fica ao lado de **Ver todos os animais**, no composer. O fluxo acontece no chat, sem modal: animais → CPF → UEP → dados da GTA → nota fiscal → placa → revisão → resultado.
+- O botão **Fazer GTA** fica ao lado de **Ver todos os animais**, no composer. O fluxo acontece no chat, sem modal: animais → CPF → UEP → dados da GTA → nota fiscal/placa (opcional) → revisão → resultado.
 - Finalidade (ENGORDA), saída (hoje), validade (+3 dias) e transporte (RODOVIÁRIO) vêm prontos num único cartão; tocar em um item abre o editor e **Continuar** aceita os padrões.
-- Nota fiscal e placa são perguntadas uma por uma e podem ficar em branco (tocar em **Continuar** sem preencher); lacre e observação continuam opcionais na revisão.
+- Antes de nota fiscal e placa, o app pergunta se o produtor quer informar esses dados; se disser **Não**, vai direto à revisão. Se disser **Sim**, são perguntadas uma por uma e podem ficar em branco (tocar em **Continuar** sem preencher); lacre e observação continuam opcionais na revisão.
 - A seleção é uma lista única com todos os animais (sem abas), agrupada por propriedade/UEP. O primeiro animal marcado trava a origem; os outros grupos ficam desabilitados até tocar em **Trocar**.
 - O CPF de destino é digitado no campo de mensagem e não entra no histórico: a bolha mostra só a máscara (`***.***.***-01`). O campo fica numérico e é limpo depois.
 - Digitar “GTA” inicia a conversa, mas a emissão só acontece pelo botão/checkbox da revisão. Textos em português simples, botões grandes.
