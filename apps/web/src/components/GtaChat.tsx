@@ -467,7 +467,6 @@ export function GtaChat({
         dataSaida,
       )} · Validade: ${formatIsoBr(dataValidade)} · Transporte: ${transporte}.`,
     );
-    appendAssistant("Quer informar a nota fiscal ou a placa do veículo?");
     setPhase("extras");
   }
 
@@ -475,14 +474,14 @@ export function GtaChat({
     if (!informar) {
       setNotaFiscal("");
       setPlaca("");
-      appendUser("Não, pular.");
+      appendUser("Não.");
       appendAssistant("Confira antes de continuar.");
       setConfirmed(false);
       setPhase("revisao");
       return;
     }
 
-    appendUser("Sim, informar.");
+    appendUser("Sim.");
     appendAssistant("Qual o número da nota fiscal?");
     setPhase("notaFiscal");
   }
@@ -564,7 +563,6 @@ export function GtaChat({
         break;
       case "notaFiscal":
         appendUser("Voltar.");
-        appendAssistant("Quer informar a nota fiscal ou a placa do veículo?");
         setPhase("extras");
         break;
       case "placa":
@@ -574,7 +572,6 @@ export function GtaChat({
         break;
       case "revisao":
         appendUser("Voltar.");
-        appendAssistant("Quer informar a nota fiscal ou a placa do veículo?");
         setPhase("extras");
         break;
       default:
@@ -1127,7 +1124,10 @@ export function GtaChat({
 
             {phase === "extras" && (
               <div>
-                <p className="text-sm text-bark-500">
+                <p className="text-base font-semibold leading-snug text-bark-700">
+                  Quer informar a nota fiscal ou a placa do veículo?
+                </p>
+                <p className="mt-1 text-xs text-bark-500">
                   Os dois são opcionais. Se não tiver, pode pular.
                 </p>
 
@@ -1136,8 +1136,7 @@ export function GtaChat({
                   onClick={() => answerExtras(true)}
                   className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-forest-700 px-5 text-base font-extrabold text-white"
                 >
-                  <Check className="h-5 w-5" />
-                  Sim, informar
+                  Sim
                 </button>
 
                 <button
@@ -1145,7 +1144,7 @@ export function GtaChat({
                   onClick={() => answerExtras(false)}
                   className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-2xl border border-cream-200 bg-white px-5 text-base font-bold text-bark-700"
                 >
-                  Não, pular
+                  Não
                 </button>
 
                 <StepLinks onBack={goBack} onCancel={cancel} />
