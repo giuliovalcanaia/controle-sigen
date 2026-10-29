@@ -54,9 +54,11 @@ Lacre e observação ficam numa seção opcional da revisão. O app usa os valor
 ### Segurança
 
 - A GTA é um **documento oficial**. Depois de emitida, não dá para desfazer pelo app.
+- Uma **viagem** (propriedade de origem + animais + data de saída) só é emitida uma vez. Placa, nota, finalidade ou destino diferentes não liberam uma segunda GTA; correções são feitas no SIGEN.
+- Um animal que já está em outra GTA do mesmo dia também bloqueia a emissão.
 - O app confere origem, destino, finalidade, datas e o **brinco oficial de 15 dígitos** de cada animal antes de salvar. Se algo divergir, ele para e não emite.
 - Se o SIGEN pedir **senha, anexo, descrição ou justificativa de bloqueio**, o app não salva; avisa para finalizar manualmente.
-- Depois do salvamento, o app **nunca repete sozinho**. Se a resposta ficar ambígua, o estado vira **incerta** e você deve conferir no SIGEN antes de tentar de novo.
+- Depois do salvamento, o app **nunca repete sozinho**. Se a resposta ficar ambígua, o estado vira **incerta** e o card mostra **Foi emitida** / **Não foi emitida**; até você responder, a mesma viagem fica bloqueada.
 - Só uma emissão por vez. A sessão do SIGEN serializa tudo.
 
 ### Modo conferência
@@ -262,15 +264,19 @@ Com `sudo tailscale set --operator=$USER`, o `serve` passa a ser configurado sem
 
 ```
 apps/api/
-  src/sigen/          sessão Playwright, cliente SIGEN, parser de PDF, driver da GTA
-  src/gta/            serviço, runner, schema, PDFs e mock da GTA
+  src/sigen/          sessão Playwright, gateway, cliente SIGEN, parser de PDF, driver da GTA
+  src/gta/            serviço, política de emissão, runner, schema, PDFs e mock da GTA
+  src/inventory.ts    job do inventário (coalescido, sem cache)
   src/routes.ts       API REST
   src/db.ts           SQLite (apelidos, fotos e histórico de GTAs)
   src/photos.ts       arquivos das fotos em data/fotos
   scripts/            login manual, verificação e check da tela de GTA
 apps/web/             PWA React + Vite + Tailwind
+  src/gtaFlow.ts      regras da conversa de GTA (fases, voltar, narrativa)
+  src/useGtaFlow.ts   chamadas à API e donos dos canais busy/texto
+  src/components/gta/ cartões de cada etapa da GTA
   src/photo.ts        recorte e redução da foto no navegador
-  src/components/GtaChat.tsx  conversa de emissão em etapas
+packages/contracts/   tipos, constantes e helpers compartilhados (@sigen/contracts)
 docs/gta-fluxo.md     mapa técnico da tela de GTA (sem PII)
 fixtures/inventory/   fixtures sanitizadas (versionadas)
 fixtures/private/     PDFs e capturas reais (gitignored)

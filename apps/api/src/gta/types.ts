@@ -1,92 +1,40 @@
-export type GtaDestino =
-  | {
-      tipo: "propria";
-      codigoOficial: string;
-      uep: string;
-    }
-  | {
-      tipo: "terceiro";
-      /** CPF/CNPJ do produtor de destino. Não é gravado nem logado. */
-      cpf: string;
-      codigoOficial: string;
-      uep: string;
-    };
+import type {
+  GtaAnimalInput,
+  GtaConferenciaResultado,
+  GtaDestino,
+  GtaDestinoUep,
+  GtaEtapa,
+  GtaInput,
+  GtaJobView,
+  GtaOptions,
+  GtaStatus,
+} from "@sigen/contracts";
 
-export type GtaAnimalInput = {
-  /** Nº Brinco oficial (15 dígitos). */
-  key: string;
-  /** Nº Manejo (6 dígitos), o número que o produtor vê. */
-  brinco: string;
+export type {
+  GtaAnimalInput,
+  GtaConferenciaResultado,
+  GtaDestino,
+  GtaDestinoUep,
+  GtaEtapa,
+  GtaInput,
+  GtaJobView,
+  GtaOptions,
+  GtaStatus,
 };
 
-export type GtaInput = {
-  origem: {
-    codigoOficial: string;
-    uep: string;
-  };
-  destino: GtaDestino;
-  animais: GtaAnimalInput[];
-  finalidade: string;
-  /** Datas no formato YYYY-MM-DD. */
-  dataSaida: string;
-  dataValidade: string;
-  transporte: string;
-  notaFiscal?: string;
-  placa?: string;
-  lacre?: string;
-  observacao?: string;
-};
-
-export type GtaStatus =
-  | "preparando"
-  | "preenchendo"
-  | "salvando"
-  | "conferida"
-  | "emitida"
-  | "incerta"
-  | "erro";
-
-export type GtaEtapa =
-  | "conferindo"
-  | "abrindo"
-  | "origem"
-  | "destino"
-  | "finalidade"
-  | "animais"
-  | "dados"
-  | "salvando"
-  | "pdf"
-  | "concluido";
+/** Status que impedem uma nova emissão da mesma viagem. */
+export const GTA_STATUS_BLOQUEANTES = [
+  "preparando",
+  "preenchendo",
+  "salvando",
+  "incerta",
+  "emitida",
+] as const satisfies readonly GtaStatus[];
 
 export type GtaProgresso = {
   etapa: GtaEtapa;
   atual: number;
   total: number;
-};
-
-export type GtaJobView = {
-  id: number;
-  status: GtaStatus;
-  etapa: GtaEtapa;
-  atual: number;
-  total: number;
-  numero: string | null;
-  temPdf: boolean;
-  erro: string | null;
-  criadaEm: string;
-  atualizadaEm: string;
-};
-
-export type GtaDestinoUep = {
-  /** ID interno da UEP no SIGEN. */
-  id: string;
-  codigoOficial: string;
-  uep: string;
-  localidade: string;
-  municipio: string;
-  uf: string;
-  especie: string;
-  produtor: string | null;
 };
 
 /** O que o driver precisa saber para preencher a tela do SIGEN. */
@@ -106,22 +54,9 @@ export type GtaFormResult = {
   pdf: Buffer | null;
 };
 
-export type GtaOptions = {
-  finalidades: string[];
-  transportes: string[];
-  hoje: string;
-  validadePadrao: string;
-  maxAnimais: number;
-  uf: string;
-  /** Quando falso, o app só confere o preenchimento e nunca salva. */
-  emissaoAtiva: boolean;
-};
-
 export type GtaStartRequest = {
   input: GtaInput;
   modo: "conferir" | "emitir";
-  /** Só para reemitir uma GTA idêntica já emitida, após confirmação. */
-  forcar?: boolean;
 };
 
 export type GtaPermissao = {

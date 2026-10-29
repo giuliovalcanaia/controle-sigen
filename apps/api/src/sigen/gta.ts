@@ -81,6 +81,58 @@ function officialBrinco(animal: SigenAnimal): string {
   return String(animal.nrBrinco ?? "").trim();
 }
 
+const OPCIONAIS = [
+  {
+    chave: "nrNotaFiscal",
+    rotulo: "A nota fiscal",
+    valor: (input: GtaFormInput) => input.notaFiscal,
+    normalizar: (value: string) => value.trim(),
+  },
+  {
+    chave: "nrPlaca",
+    rotulo: "A placa",
+    valor: (input: GtaFormInput) => input.placa,
+    normalizar: (value: string) => value.trim().toUpperCase(),
+  },
+  {
+    chave: "nrLacre",
+    rotulo: "O lacre",
+    valor: (input: GtaFormInput) => input.lacre,
+    normalizar: (value: string) => value.trim(),
+  },
+  {
+    chave: "dsObservacao",
+    rotulo: "A observação",
+    valor: (input: GtaFormInput) => input.observacao,
+    normalizar: (value: string) => value.trim(),
+  },
+] as const;
+
+/**
+ * Confere os campos opcionais no payload que será enviado ao `Add`.
+ *
+ * Se o campo sumir do `getRecord()`, a comparação falha: é melhor não emitir
+ * do que emitir sem a placa ou a nota que o produtor digitou.
+ */
+export function conferirOpcionais(
+  body: Record<string, unknown>,
+  input: GtaFormInput,
+): string | null {
+  for (const campo of OPCIONAIS) {
+    const esperado = campo.normalizar(campo.valor(input) ?? "");
+    const bruto = body[campo.chave];
+    const atual = campo.normalizar(
+      typeof bruto === "string" || typeof bruto === "number"
+        ? String(bruto)
+        : "",
+    );
+
+    if (atual !== esperado) return `${campo.rotulo} não confere.`;
+  }
+
+  return null;
+}
+
 export class PlaywrightGtaForm implements GtaForm {
   private frame: Frame | null = null;
   private finalidadeId = "";
@@ -347,6 +399,9 @@ export class PlaywrightGtaForm implements GtaForm {
         "A lista de animais da GTA não confere com a seleção. Nada foi emitido.",
       );
     }
+
+    const opcionais = conferirOpcionais(body, input);
+    if (opcionais) fail(opcionais);
   }
 
   async preflight(record: SigenGtaRecord): Promise<GtaPermissao> {
@@ -629,10 +684,22 @@ export class PlaywrightGtaForm implements GtaForm {
 
   private async setField(id: string, value: string | undefined): Promise<void> {
     if (!value) return;
-    await this.formFrame.evaluate(`(() => {
+
+    const aceitou = (await this.formFrame.evaluate(`(() => {
       const c = Ext.getCmp(${JSON.stringify(id)});
-      if (c) c.setValue(${JSON.stringify(value)});
-    })()`);
+      if (!c) return false;
+      c.setValue(${JSON.stringify(value)});
+      return String(c.getValue() ?? "").trim() === ${JSON.stringify(
+        value.trim(),
+      )};
+    })()`)) as boolean;
+
+    if (!aceitou) {
+      throw new SigenError(
+        "GTA_TELA_MUDOU",
+        `O campo ${id} não aceitou o valor informado. Nada foi emitido.`,
+      );
+    }
   }
 
   private async json(

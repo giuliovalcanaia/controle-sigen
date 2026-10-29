@@ -52,6 +52,7 @@ function job(overrides: Partial<GtaJobView> = {}): GtaJobView {
     numero: null,
     temPdf: false,
     erro: null,
+    codigo: null,
     criadaEm: "2026-10-25T10:00:00.000Z",
     atualizadaEm: "2026-10-25T10:00:00.000Z",
     ...overrides,
@@ -176,6 +177,7 @@ describe("GTA no cliente", () => {
   it("traduz os estados", () => {
     expect(gtaStatusText("emitida")).toBe("Emitida");
     expect(gtaStatusText("conferida")).toBe("Conferida");
+    expect(gtaStatusText("nao_emitida")).toBe("Não emitida");
     expect(gtaStatusText("incerta")).toBe("Conferir no SIGEN");
     expect(gtaStatusText("salvando")).toBe("Em andamento");
   });

@@ -4,9 +4,10 @@ import { openAnimalStore } from "./db.js";
 import { createMockGtaService } from "./gta/mock.js";
 import { openGtaPdfStore } from "./gta/pdf.js";
 import { createGtaService, type GtaService } from "./gta/service.js";
+import { createInventoryService, type InventoryService } from "./inventory.js";
 import { openPhotoStore } from "./photos.js";
-import type { InventoryService } from "./routes.js";
 import { SigenClient } from "./sigen/client.js";
+import { createSigenGateway } from "./sigen/gateway.js";
 import { getMockInventory } from "./sigen/mock.js";
 import { SigenSession } from "./sigen/session.js";
 import type { SigenStatus } from "./sigen/types.js";
@@ -22,7 +23,9 @@ let getStatus: () => SigenStatus;
 let logout: () => Promise<void>;
 
 if (config.mock) {
-  inventory = { getInventory: async () => getMockInventory() };
+  inventory = createInventoryService({
+    load: async () => getMockInventory(),
+  });
   gta = createMockGtaService(store);
   getStatus = () => ({ state: "active", expiresInSeconds: 0 });
   logout = async () => undefined;
@@ -30,13 +33,19 @@ if (config.mock) {
   const activeSession = new SigenSession(config.sigen);
   session = activeSession;
   const client = new SigenClient(activeSession, config.sigen.baseUrl);
-  inventory = { getInventory: () => client.getInventory() };
-  gta = createGtaService({
+  const gateway = createSigenGateway({
     client,
     session: activeSession,
+    baseUrl: config.sigen.baseUrl,
+  });
+
+  inventory = createInventoryService({
+    load: (onProgress) => client.getInventory(onProgress),
+  });
+  gta = createGtaService({
+    gateway,
     store,
     pdfs: gtaPdfs,
-    baseUrl: config.sigen.baseUrl,
     emissaoAtiva: config.gta.emissaoAtiva,
   });
   getStatus = () => activeSession.getStatus();

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   addDaysIso,
-  gtaHash,
   gtaInputSchema,
   isValidIsoDate,
   maskDocumento,
@@ -42,52 +41,6 @@ describe("datas", () => {
   });
 });
 
-describe("hash de duplicidade", () => {
-  it("não muda com a ordem dos animais", () => {
-    const a = input({
-      animais: [
-        { key: "076000003067836", brinco: "067836" },
-        { key: "076000003069054", brinco: "069054" },
-      ],
-    });
-    const b = input({
-      animais: [
-        { key: "076000003069054", brinco: "069054" },
-        { key: "076000003067836", brinco: "067836" },
-      ],
-    });
-    expect(gtaHash(a)).toBe(gtaHash(b));
-  });
-
-  it("muda quando o destino muda", () => {
-    const a = input();
-    const b = input({
-      destino: { tipo: "propria", codigoOficial: "42-000311195", uep: "1" },
-    });
-    expect(gtaHash(a)).not.toBe(gtaHash(b));
-  });
-
-  it("não inclui o CPF do destino", () => {
-    const a = input({
-      destino: {
-        tipo: "terceiro",
-        cpf: "11111111111",
-        codigoOficial: "42-000261071",
-        uep: "1",
-      },
-    });
-    const b = input({
-      destino: {
-        tipo: "terceiro",
-        cpf: "22222222222",
-        codigoOficial: "42-000261071",
-        uep: "1",
-      },
-    });
-    expect(gtaHash(a)).toBe(gtaHash(b));
-  });
-});
-
 describe("documentos", () => {
   it("mascara CPF e CNPJ", () => {
     expect(maskDocumento("12345678901")).toBe("***.***.***-01");
@@ -97,6 +50,12 @@ describe("documentos", () => {
   it("remove documentos de mensagens de erro", () => {
     expect(sanitizeErrorMessage("CPF 12345678901 inválido")).toBe(
       "CPF ***.***.***-01 inválido",
+    );
+    expect(sanitizeErrorMessage("CPF 123.456.789-01 inválido")).toBe(
+      "CPF ***.***.***-01 inválido",
+    );
+    expect(sanitizeErrorMessage("CNPJ 12.345.678/0001-99 recusado")).toBe(
+      "CNPJ **.***.***/****-99 recusado",
     );
   });
 });

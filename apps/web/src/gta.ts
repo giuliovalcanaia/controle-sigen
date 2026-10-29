@@ -9,10 +9,15 @@ import type {
   PropertyInventory,
 } from "./types";
 
-export const GTA_FINALIDADE_PADRAO = "ENGORDA";
-export const GTA_TRANSPORTE_PADRAO = "RODOVIÁRIO";
-export const GTA_VALIDADE_DIAS = 3;
-export const GTA_MAX_DIAS_VALIDADE = 30;
+export {
+  addDaysIso,
+  formatIsoBr,
+  GTA_FINALIDADE_PADRAO,
+  GTA_MAX_DIAS_VALIDADE,
+  GTA_TRANSPORTE_PADRAO,
+  GTA_VALIDADE_DIAS,
+  maskDocumento,
+} from "@sigen/contracts";
 
 export type GtaDestinoChoice =
   | { tipo: "propria"; property: PropertyInventory; uep: string }
@@ -79,13 +84,6 @@ export function originKeyForSelection(
   return null;
 }
 
-export function maskDocumento(value: string): string {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length === 11) return `***.***.***-${digits.slice(-2)}`;
-  if (digits.length === 14) return `**.***.***/****-${digits.slice(-2)}`;
-  return "***";
-}
-
 export function animalSelectionSummary(animals: Animal[]): string {
   const labels = animals.map((animal) =>
     animal.apelido?.trim()
@@ -108,18 +106,6 @@ export function animalsForUep(
   return property.animais.filter(
     (animal) => !animal.uep || animal.uep === uep,
   );
-}
-
-export function formatIsoBr(iso: string): string {
-  const [year = "", month = "", day = ""] = iso.split("-");
-  return `${day}/${month}/${year}`;
-}
-
-export function addDaysIso(iso: string, days: number): string {
-  const [year = 0, month = 0, day = 0] = iso.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day + days))
-    .toISOString()
-    .slice(0, 10);
 }
 
 export function formatDateTime(iso: string): string {
@@ -195,6 +181,8 @@ export function gtaStatusText(status: GtaStatus): string {
       return "Conferida";
     case "emitida":
       return "Emitida";
+    case "nao_emitida":
+      return "Não emitida";
     case "incerta":
       return "Conferir no SIGEN";
     case "erro":

@@ -35,8 +35,12 @@ export class SigenClient {
     private readonly baseUrl: string,
   ) {}
 
-  async getInventory(): Promise<Inventory> {
-    return this.session.withContext(async (context) => {
+  async getInventory(
+    onProgress?: (atual: number, total: number) => void,
+  ): Promise<Inventory> {
+    // A sessão fica presa só o tempo dos downloads. `pdftotext` e o parsing
+    // são locais e rodam depois, fora do mutex, sem bloquear uma emissão.
+    const baixados = await this.session.withContext(async (context) => {
       const ueps = await this.listUeps(context);
       if (ueps.length === 0) {
         throw new SigenError(
@@ -47,40 +51,65 @@ export class SigenClient {
 
       // Só baixamos PDFs de UEPs bovinas. Se a API não informar a espécie
       // (layout antigo), mantemos todas como fallback.
-      const bovinas = ueps.filter((uep) => uep.especie?.toUpperCase() === "BOVINO");
-      const uepIds = (bovinas.length > 0 ? bovinas : ueps).map((uep) => uep.id);
+      const bovinas = ueps.filter(
+        (uep) => uep.especie?.toUpperCase() === "BOVINO",
+      );
+      const uepIds = (bovinas.length > 0 ? bovinas : ueps).map(
+        (uep) => uep.id,
+      );
 
-      const parsed: ParsedInventory[] = [];
+      const pdfs: Array<{ uepId: string; bytes: Buffer }> = [];
       const warnings: string[] = [];
+
+      onProgress?.(0, uepIds.length);
 
       for (const uepId of uepIds) {
         try {
-          const pdf = await this.downloadInventoryPdf(context, uepId);
-          const text = await pdfToText(pdf);
-          const inventory = parseInventoryText(text);
-          if (inventory.especie.toUpperCase() === "BOVINO") {
-            parsed.push(inventory);
-          }
+          pdfs.push({
+            uepId,
+            bytes: await this.downloadInventoryPdf(context, uepId),
+          });
         } catch (error) {
           if (error instanceof SigenError && error.code === "SESSAO_EXPIRADA") {
             throw error;
           }
-          const message = error instanceof Error ? error.message : String(error);
+          const message =
+            error instanceof Error ? error.message : String(error);
           warnings.push(`UEP ${uepId}: ${message}`);
         }
       }
 
-      if (parsed.length === 0) {
-        throw new SigenError(
-          "SIGEN_ERRO",
-          warnings[0] ??
-            "Nenhum inventário bovino pôde ser lido. O layout do SIGEN pode ter mudado.",
-        );
+      return { uepIds, pdfs, warnings };
+    });
+
+    const parsed: ParsedInventory[] = [];
+    const warnings = [...baixados.warnings];
+
+    for (const [index, { uepId, bytes }] of baixados.pdfs.entries()) {
+      try {
+        const text = await pdfToText(bytes);
+        const inventory = parseInventoryText(text);
+        if (inventory.especie.toUpperCase() === "BOVINO") {
+          parsed.push(inventory);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        warnings.push(`UEP ${uepId}: ${message}`);
       }
 
-      const inventory = groupInventories(parsed);
-      return { ...inventory, avisos: warnings };
-    });
+      onProgress?.(index + 1, baixados.uepIds.length);
+    }
+
+    if (parsed.length === 0) {
+      throw new SigenError(
+        "SIGEN_ERRO",
+        warnings[0] ??
+          "Nenhum inventário bovino pôde ser lido. O layout do SIGEN pode ter mudado.",
+      );
+    }
+
+    const inventory = groupInventories(parsed);
+    return { ...inventory, avisos: warnings };
   }
 
   /** Lista as UEPs com código, nº, localidade e espécie (sem CPF). */

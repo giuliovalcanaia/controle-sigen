@@ -13,7 +13,7 @@ npm run typecheck
 npm run build && npm start  # produção: Fastify serve o PWA e a API
 ```
 
-- Teste único: `npm run test -w @sigen/api -- src/sigen/pdf.test.ts`
+- Teste único: `npm run build:contracts && npm run test -w @sigen/api -- src/sigen/pdf.test.ts`
 - Interface sem SIGEN: `SIGEN_MOCK=1 npm run dev`
 - Login manual (abre Chromium visível): `npm run sigen:login`
 - Verificação ponta a ponta: `npm run sigen:check`
@@ -25,15 +25,19 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 ## Arquitetura
 
 - `apps/api/src/sigen/session.ts` — singleton de sessão. Login preguiçoso, **20 min de ociosidade**, mutex global, um único `BrowserContext`. `withWritePage` entrega a página e **não repete** a função (usado na GTA).
-- `apps/api/src/sigen/client.ts` — após o login, usa `context.request` contra endpoints internos do SIGEN. Não navegue pela UI para ler dados.
+- `apps/api/src/sigen/client.ts` — após o login, usa `context.request` contra endpoints internos do SIGEN. Não navegue pela UI para ler dados. O `pdftotext` e o parsing rodam fora do mutex da sessão.
+- `apps/api/src/sigen/gateway.ts` — porta da emissão (listar UEPs, QuickSearch, executar o formulário) com adapter Playwright e fake nos testes.
 - `apps/api/src/sigen/gta.ts` — driver da tela de GTA. Preenche a tela ExtJS no iframe e salva pelos endpoints JSON (`Add`/`Get`/`Print`). Nunca repete o `Add`.
-- `apps/api/src/gta/` — serviço, runner, schema, store de PDFs e mock da GTA.
+- `apps/api/src/gta/` — serviço, política de emissão (`emissao.ts`), runner, schema, store de PDFs e mock da GTA.
+- `apps/api/src/inventory.ts` — job do inventário: uma consulta por vez, coalescida e descartável (não é cache).
 - `apps/api/src/sigen/pdf.ts` — `pdftotext -layout` + parser do relatório. Depende de `poppler-utils`.
 - `apps/api/src/sigen/uep.ts` — descobre IDs de UEP varrendo o JSON, sem depender de caminho fixo.
 - `apps/api/src/db.ts` — SQLite (`better-sqlite3`) com apelidos, versão das fotos e histórico de GTAs.
+- `packages/contracts/` — contrato compartilhado (`@sigen/contracts`): tipos, constantes, datas e máscara usados por `api` e `web`. Rode `npm run build:contracts` antes de um teste isolado.
 - `apps/api/src/photos.ts` — arquivos das fotos em `data/fotos/<brinco oficial>.jpg`.
 - `apps/api/src/gta/pdf.ts` — PDFs das GTAs em `data/gta/<id>.pdf`.
 - `apps/web/` — PWA React/Vite/Tailwind; chat de listagem + conversa de GTA em etapas (`components/GtaChat.tsx`).
+- `apps/web/src/gtaFlow.ts` — regras da conversa de GTA (fases, voltar, validação e narrativa). `useGtaFlow.ts` concentra as chamadas à API e registra os canais `busy`/texto com o `flowId` dono.
 - `docs/gta-fluxo.md` — mapa técnico da tela de GTA (sem PII).
 
 ## Invariantes que não podem quebrar
@@ -43,13 +47,13 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 3. **Somente BOVINO.** O PDF traz `Espécie:`; filtre no cliente, não no parser.
 4. **Valide a contagem** de linhas contra `Qtde. Animais`. Se divergir, lance `PDF_LAYOUT_MUDOU`; nunca devolva dados parciais.
 5. **UEP sem saldo** não é erro: o PDF não tem tabela e traz “não possui saldo animal”. Retorne 0 animais.
-6. **Sem cache de animais.** Toda consulta baixa PDFs novos. O SIGEN é a fonte da verdade.
+6. **Sem cache de animais.** Toda consulta baixa PDFs novos. O SIGEN é a fonte da verdade. O job do inventário é descartável: em andamento ele é reaproveitado, mas depois de pronto uma nova consulta baixa tudo de novo.
 7. **Uma sessão por processo.** Não crie outro `BrowserContext`/Playwright em paralelo; o SIGEN derruba a sessão anterior.
 8. **20 minutos de ociosidade**, não tempo total. Toda requisição reinicia o relógio. `SIGEN_IDLE_MINUTES` altera.
 9. **Foto é dado local**, não do SIGEN. Fica em `data/fotos` com a chave oficial, fora do git e da imagem Docker. Nunca envie foto ao SIGEN.
-10. **GTA é documento oficial.** Depois do `POST /SaidaAnimais/Add`, nunca repita o salvamento sozinho. Resposta ambígua vira `incerta` e o produtor confere no SIGEN.
+10. **GTA é documento oficial.** Depois do `POST /SaidaAnimais/Add`, nunca repita o salvamento sozinho. Resposta ambígua vira `incerta` e o produtor confere no SIGEN. A **viagem** (origem + animais + data) é reservada atomicamente e só é emitida uma vez; `incerta` bloqueia até o produtor responder no app (**Foi emitida** / **Não foi emitida**).
 11. **Emissão desligada por padrão.** `GTA_EMISSAO_ATIVA=0` só confere a tela; `1` só depois de uma emissão real validada.
-12. **CPF não vaza.** O CPF do produtor vem da sessão do SIGEN e fica no servidor. O CPF de terceiro é digitado no chat, usado só para buscar a UEP e emitir, e nunca vai para log ou banco. No histórico, aparece mascarado.
+12. **CPF não vaza.** O CPF do produtor vem da sessão do SIGEN e fica no servidor. O CPF de terceiro é digitado no chat, usado só para buscar a UEP e emitir, e nunca vai para log ou banco. No histórico e nas mensagens de erro, aparece mascarado (inclusive no formato `123.456.789-01`).
 13. **PDF de GTA é privado.** Fica em `data/gta`, permissão `600`, fora do git, servido com `no-store`.
 14. **Falhe antes de salvar.** O driver confere origem, destino, finalidade, datas e o brinco oficial de 15 dígitos de cada animal. Se a tela mudar, lance `GTA_TELA_MUDOU` e não emita.
 15. **Uma emissão por vez.** A sessão serializa; não abra outro Playwright durante a GTA.
@@ -63,6 +67,7 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 - Emissão: `POST /DSA.Areas.Movimentacao/SaidaAnimais/Add`; leitura do número: `GET .../SaidaAnimais/Get/<id>`; PDF: `POST .../SaidaAnimais/Print`.
 - Permissão de apoio (somente leitura): `POST .../SaidaAnimais/VerificarPermissaoApoio`.
 - O mapa completo está em `docs/gta-fluxo.md`.
+- O vocabulário do domínio (manejo, brinco oficial, UEP, viagem, incerta) está em `GLOSSARY.md`.
 - Hoje: 4 propriedades, 12 bovinos, uma propriedade sem animais (deve aparecer como “Sem animais”).
 - O produtor chama o manejo de “brinco”; o número oficial de 15 dígitos é interno.
 

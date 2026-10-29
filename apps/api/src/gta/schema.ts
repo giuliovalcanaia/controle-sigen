@@ -1,12 +1,18 @@
-import { createHash } from "node:crypto";
 import { z } from "zod";
+import { addDaysIso } from "@sigen/contracts";
 import {
   GTA_FINALIDADES,
   GTA_MAX_ANIMAIS,
   GTA_MAX_DIAS_VALIDADE,
   GTA_TRANSPORTES,
 } from "./constants.js";
-import type { GtaInput } from "./types.js";
+
+export {
+  addDaysIso,
+  formatIsoBr as formatBr,
+  maskDocumento,
+  sanitizeErrorMessage,
+} from "@sigen/contracts";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -29,32 +35,6 @@ export function isValidIsoDate(value: string): boolean {
     date.getUTCMonth() === month - 1 &&
     date.getUTCDate() === day
   );
-}
-
-export function addDaysIso(value: string, days: number): string {
-  const [year = 0, month = 0, day = 0] = value.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day + days))
-    .toISOString()
-    .slice(0, 10);
-}
-
-export function formatBr(value: string): string {
-  const [year = "", month = "", day = ""] = value.split("-");
-  return `${day}/${month}/${year}`;
-}
-
-export function maskDocumento(value: string): string {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length === 11) return `***.***.***-${digits.slice(-2)}`;
-  if (digits.length === 14) return `**.***.***/****-${digits.slice(-2)}`;
-  return "***";
-}
-
-/** Evita que CPF/CNPJ apareçam em mensagens de erro e logs. */
-export function sanitizeErrorMessage(message: string): string {
-  return message
-    .replace(/\b\d{11}\b/g, (value) => maskDocumento(value))
-    .replace(/\b\d{14}\b/g, (value) => maskDocumento(value));
 }
 
 const codigoOficial = z
@@ -199,36 +179,6 @@ export const gtaInputSchema = z
   });
 
 export const gtaLookupSchema = z.object({ cpf });
-
-/**
- * Impressão digital da emissão, usada para impedir duplicidade.
- * O CPF não entra: o destino é identificado por código + UEP.
- */
-export function gtaHash(input: GtaInput): string {
-  const canonical = {
-    origem: {
-      codigoOficial: input.origem.codigoOficial,
-      uep: input.origem.uep,
-    },
-    destino: {
-      codigoOficial: input.destino.codigoOficial,
-      uep: input.destino.uep,
-    },
-    animais: [...input.animais]
-      .map((item) => item.key)
-      .sort((a, b) => a.localeCompare(b)),
-    finalidade: input.finalidade,
-    dataSaida: input.dataSaida,
-    dataValidade: input.dataValidade,
-    transporte: input.transporte,
-    notaFiscal: input.notaFiscal?.trim() ?? "",
-    placa: input.placa?.trim().toUpperCase() ?? "",
-    lacre: input.lacre?.trim() ?? "",
-    observacao: input.observacao?.trim() ?? "",
-  };
-
-  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
-}
 
 /** Primeira mensagem de erro do Zod, em português. */
 export function firstIssue(error: z.ZodError): string {
