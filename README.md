@@ -84,7 +84,7 @@ flowchart LR
 | API | Node.js 22, Fastify 5, Zod 4, `better-sqlite3` |
 | Automação | Playwright (Chromium), `context.request` e driver da tela ExtJS |
 | Contratos | TypeScript workspaces (`@sigen/contracts`) |
-| Testes | Vitest, 148 testes entre API e PWA |
+| Testes | Vitest (API + PWA) |
 | Infra | Docker Compose, `tailscale serve`, `poppler-utils` |
 
 ## Rodando em 2 minutos
@@ -134,7 +134,7 @@ npm test
 npm run typecheck
 ```
 
-O workflow em [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda `typecheck`, testes e build em cada push para `master` e em pull requests. Os testes cobrem o parser de PDF, o agrupamento do inventário, a política de emissão, a reserva da viagem, os contratos e as regras da conversa de GTA.
+O workflow em [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda `typecheck`, testes e build em cada push para `master` e em pull requests. São **148 testes públicos**; em uma máquina com `fixtures/private`, os PDFs reais adicionam testes de integração locais. A suíte cobre o parser de PDF, o agrupamento do inventário, a política de emissão, a reserva da viagem, os contratos e as regras da conversa de GTA.
 
 ## Estrutura
 
