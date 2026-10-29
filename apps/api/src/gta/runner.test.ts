@@ -21,7 +21,7 @@ function record(): SigenGtaRecord {
       unidadeExploracaoOrigem: { idUnidadeExploracao: 169696 },
       unidadeExploracaoDestino: { idUnidadeExploracao: 669790 },
       pessoaEmitente: { idPessoa: 207951 },
-      listaSaidaAnimaisBrinco: [{ nrBrincoNovo: "076000003067836" }],
+      listaSaidaAnimaisBrinco: [{ nrBrincoNovo: "999000000067836" }],
       municipioGta: { idMunicipio: 4391 },
       gta: { dsSerieGta: "000", nrSequenciaGta: "123456" },
     },
@@ -29,9 +29,9 @@ function record(): SigenGtaRecord {
 }
 
 const input: GtaFormInput = {
-  origem: { codigoOficial: "42-000165623", uep: "1" },
-  destino: { tipo: "propria", codigoOficial: "42-000261071", uep: "1" },
-  animais: [{ key: "076000003067836", brinco: "067836" }],
+  origem: { codigoOficial: "42-900000001", uep: "1" },
+  destino: { tipo: "propria", codigoOficial: "42-900000002", uep: "1" },
+  animais: [{ key: "999000000067836", brinco: "067836" }],
   finalidade: "ENGORDA",
   dataSaida: "2026-10-25",
   dataValidade: "2026-10-28",

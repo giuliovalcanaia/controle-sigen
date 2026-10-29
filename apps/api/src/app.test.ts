@@ -10,7 +10,7 @@ import { createInventoryService } from "./inventory.js";
 import { openPhotoStore, type PhotoStore } from "./photos.js";
 import { getMockInventory } from "./sigen/mock.js";
 
-const ANIMAL_KEY = "076000003067836";
+const ANIMAL_KEY = "999000000067836";
 
 let app: Awaited<ReturnType<typeof buildApp>> | null = null;
 let store: AnimalStore | null = null;
@@ -80,7 +80,7 @@ describe("API", () => {
     expect(body.propriedades).toHaveLength(4);
     expect(
       body.propriedades.find(
-        (p: { codigo: string }) => p.codigo === "42-000261676",
+        (p: { codigo: string }) => p.codigo === "42-900000003",
       ).animais,
     ).toHaveLength(0);
 
@@ -255,8 +255,8 @@ describe("API", () => {
 
 describe("GTA", () => {
   const gta = () => ({
-    origem: { codigoOficial: "42-000165623", uep: "1" },
-    destino: { tipo: "propria" as const, codigoOficial: "42-000261071", uep: "1" },
+    origem: { codigoOficial: "42-900000001", uep: "1" },
+    destino: { tipo: "propria" as const, codigoOficial: "42-900000002", uep: "1" },
     animais: [{ key: ANIMAL_KEY, brinco: "067836" }],
     finalidade: "ENGORDA",
     dataSaida: todayIso(),
@@ -336,7 +336,7 @@ describe("GTA", () => {
   it("recusa animal que não está na propriedade", async () => {
     const server = await setup();
     const payload = gta();
-    payload.animais = [{ key: "076000000233768", brinco: "233768" }];
+    payload.animais = [{ key: "999000000233768", brinco: "233768" }];
 
     const response = await server.inject({
       method: "POST",
@@ -405,7 +405,7 @@ describe("GTA", () => {
   it("bloqueia animal que já saiu em outra GTA do mesmo dia", async () => {
     const server = await setup();
     const property = getMockInventory().propriedades.find(
-      (item) => item.codigo === "42-000165623",
+      (item) => item.codigo === "42-900000001",
     )!;
     const primeiro = property.animais[0]!;
     const segundo = property.animais[1]!;

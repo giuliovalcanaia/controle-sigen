@@ -12,9 +12,9 @@ import type { GtaInput } from "./types.js";
 function input(overrides: Partial<GtaInput> = {}): GtaInput {
   const hoje = todayIso();
   return {
-    origem: { codigoOficial: "42-000165623", uep: "1" },
-    destino: { tipo: "propria", codigoOficial: "42-000261071", uep: "1" },
-    animais: [{ key: "076000003067836", brinco: "067836" }],
+    origem: { codigoOficial: "42-900000001", uep: "1" },
+    destino: { tipo: "propria", codigoOficial: "42-900000002", uep: "1" },
+    animais: [{ key: "999000000067836", brinco: "067836" }],
     finalidade: "ENGORDA",
     dataSaida: addDaysIso(hoje, 1),
     dataValidade: addDaysIso(hoje, 4),
@@ -69,7 +69,7 @@ describe("schema da GTA", () => {
   it("rejeita destino igual à origem", () => {
     const result = gtaInputSchema.safeParse(
       input({
-        destino: { tipo: "propria", codigoOficial: "42-000165623", uep: "1" },
+        destino: { tipo: "propria", codigoOficial: "42-900000001", uep: "1" },
       }),
     );
     expect(result.success).toBe(false);
@@ -79,8 +79,8 @@ describe("schema da GTA", () => {
     const result = gtaInputSchema.safeParse(
       input({
         animais: [
-          { key: "076000003067836", brinco: "067836" },
-          { key: "076000003067836", brinco: "067836" },
+          { key: "999000000067836", brinco: "067836" },
+          { key: "999000000067836", brinco: "067836" },
         ],
       }),
     );

@@ -18,9 +18,9 @@ import type {
 } from "./types";
 
 const ANIMAL_A: Animal = {
-  key: "076000003067836",
+  key: "999000000067836",
   brinco: "067836",
-  brincoOficial: "076000003067836",
+  brincoOficial: "999000000067836",
   uep: "1",
   sexo: "Fêmea",
   idade: { anos: 2, meses: 1 },
@@ -31,17 +31,17 @@ const ANIMAL_A: Animal = {
 
 const ANIMAL_B: Animal = {
   ...ANIMAL_A,
-  key: "076000003069054",
+  key: "999000000069054",
   brinco: "069054",
-  brincoOficial: "076000003069054",
+  brincoOficial: "999000000069054",
   apelido: null,
 };
 
 const ANIMAL_C: Animal = {
   ...ANIMAL_A,
-  key: "105420236855019",
+  key: "999000000685501",
   brinco: "685501",
-  brincoOficial: "105420236855019",
+  brincoOficial: "999000000685501",
   uep: "1",
   apelido: "Estrela",
 };
@@ -52,17 +52,17 @@ const INVENTORY: Inventory = {
   avisos: [],
   propriedades: [
     {
-      codigo: "42-000165623",
-      localidade: "Capivari",
-      municipio: "Doutor Pedrinho",
+      codigo: "42-900000001",
+      localidade: "Sede",
+      municipio: "Vale do Cedro",
       uf: "SC",
       ueps: ["1"],
       animais: [ANIMAL_A, ANIMAL_B],
     },
     {
-      codigo: "42-000311195",
-      localidade: "Coqueiral",
-      municipio: "Doutor Pedrinho",
+      codigo: "42-900000004",
+      localidade: "Alto da Serra",
+      municipio: "Vale do Cedro",
       uf: "SC",
       ueps: ["1"],
       animais: [ANIMAL_C],
@@ -70,8 +70,8 @@ const INVENTORY: Inventory = {
   ],
 };
 
-const ORIGEM = "42-000165623-1";
-const OUTRA_ORIGEM = "42-000311195-1";
+const ORIGEM = "42-900000001-1";
+const OUTRA_ORIGEM = "42-900000004-1";
 
 const OPTIONS: GtaOptions = {
   finalidades: ["ENGORDA", "REPRODUÇÃO"],
@@ -85,10 +85,10 @@ const OPTIONS: GtaOptions = {
 
 const DESTINO_UEP: GtaDestinoUep = {
   id: "911677",
-  codigoOficial: "42-000311195",
+  codigoOficial: "42-900000004",
   uep: "1",
-  localidade: "Coqueiral",
-  municipio: "Doutor Pedrinho",
+  localidade: "Alto da Serra",
+  municipio: "Vale do Cedro",
   uf: "SC",
   especie: "BOVINO",
   produtor: "Vizinho",
@@ -97,8 +97,8 @@ const DESTINO_UEP: GtaDestinoUep = {
 const UEP_ORIGEM: GtaDestinoUep = {
   ...DESTINO_UEP,
   id: "169696",
-  codigoOficial: "42-000165623",
-  localidade: "Capivari",
+  codigoOficial: "42-900000001",
+  localidade: "Sede",
 };
 
 function job(overrides: Partial<GtaJobView> = {}): GtaJobView {

@@ -2,7 +2,7 @@ export type UepRef = {
   id: string;
   /** Nº da UEP dentro da propriedade (ex.: "1"). */
   nr: string;
-  /** Código oficial formatado (ex.: "42-000165623"). */
+  /** Código oficial formatado (ex.: "42-900000001"). */
   codigoOficial: string;
   localidade: string;
   municipio: string;

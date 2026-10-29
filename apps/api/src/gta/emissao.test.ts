@@ -3,13 +3,13 @@ import { openAnimalStore } from "../db.js";
 import { createEmissao, identidadeDaViagem } from "./emissao.js";
 import type { GtaInput } from "./types.js";
 
-const ANIMAL_A = { key: "076000003067836", brinco: "067836" };
-const ANIMAL_B = { key: "076000003069054", brinco: "069054" };
+const ANIMAL_A = { key: "999000000067836", brinco: "067836" };
+const ANIMAL_B = { key: "999000000069054", brinco: "069054" };
 
 function input(overrides: Partial<GtaInput> = {}): GtaInput {
   return {
-    origem: { codigoOficial: "42-000165623", uep: "1" },
-    destino: { tipo: "propria", codigoOficial: "42-000261071", uep: "1" },
+    origem: { codigoOficial: "42-900000001", uep: "1" },
+    destino: { tipo: "propria", codigoOficial: "42-900000002", uep: "1" },
     animais: [ANIMAL_A],
     finalidade: "ENGORDA",
     dataSaida: "2026-10-25",
@@ -33,7 +33,7 @@ describe("identidade da viagem", () => {
   it("não muda com placa, nota, finalidade, destino, transporte ou validade", () => {
     const base = input();
     const outra = input({
-      destino: { tipo: "propria", codigoOficial: "42-000311195", uep: "1" },
+      destino: { tipo: "propria", codigoOficial: "42-900000004", uep: "1" },
       finalidade: "REPRODUÇÃO",
       transporte: "AÉREO",
       dataValidade: "2026-10-30",
@@ -58,7 +58,7 @@ describe("identidade da viagem", () => {
     const comOutroAnimal = input({ animais: [ANIMAL_B] });
     const outroDia = input({ dataSaida: "2026-10-26" });
     const outraOrigem = input({
-      origem: { codigoOficial: "42-000261071", uep: "1" },
+      origem: { codigoOficial: "42-900000002", uep: "1" },
     });
 
     expect(identidadeDaViagem(comOutroAnimal)).not.toBe(identidadeDaViagem(base));
@@ -108,7 +108,7 @@ describe("reserva da viagem", () => {
     store.updateGta(id, { status: "emitida", numero: "000 1" });
 
     const comDoisAnimais = input({
-      destino: { tipo: "propria", codigoOficial: "42-000311195", uep: "1" },
+      destino: { tipo: "propria", codigoOficial: "42-900000004", uep: "1" },
       animais: [ANIMAL_A, ANIMAL_B],
     });
 

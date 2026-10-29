@@ -88,11 +88,11 @@ describe("collectUepIds", () => {
             idUnidadeExploracao: 169696,
             nrUnidadeExploracao: 1,
             propriedade: {
-              cdOficialFormatado: "42-000165623",
+              cdOficialFormatado: "42-900000001",
               localidade: {
-                nmLocalidade: "Capivari",
+                nmLocalidade: "Sede",
                 municipio: {
-                  nmMunicipio: "Doutor Pedrinho",
+                  nmMunicipio: "Vale do Cedro",
                   uf: { sgUF: "", nrCodigoIBGE: 42 },
                 },
               },
@@ -107,9 +107,9 @@ describe("collectUepIds", () => {
     expect(collectUeps(body)[0]).toEqual({
       id: "169696",
       nr: "1",
-      codigoOficial: "42-000165623",
-      localidade: "Capivari",
-      municipio: "Doutor Pedrinho",
+      codigoOficial: "42-900000001",
+      localidade: "Sede",
+      municipio: "Vale do Cedro",
       uf: "SC",
       especie: "BOVINO",
       produtor: "NOME",

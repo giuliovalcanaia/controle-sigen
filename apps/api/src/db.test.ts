@@ -9,27 +9,27 @@ describe("openAnimalStore", () => {
   it("grava, lê e remove apelidos", () => {
     const store = openAnimalStore(":memory:");
 
-    store.setNickname("076000003067836", "Mimosa");
-    store.setNickname("076000003069054", "Estrela");
+    store.setNickname("999000000067836", "Mimosa");
+    store.setNickname("999000000069054", "Estrela");
     expect(store.nicknames()).toEqual(
       new Map([
-        ["076000003067836", "Mimosa"],
-        ["076000003069054", "Estrela"],
+        ["999000000067836", "Mimosa"],
+        ["999000000069054", "Estrela"],
       ]),
     );
 
-    store.setNickname("076000003067836", "Mimosinha");
-    expect(store.nicknames().get("076000003067836")).toBe("Mimosinha");
+    store.setNickname("999000000067836", "Mimosinha");
+    expect(store.nicknames().get("999000000067836")).toBe("Mimosinha");
 
-    store.removeNickname("076000003069054");
-    expect(store.nicknames().has("076000003069054")).toBe(false);
+    store.removeNickname("999000000069054");
+    expect(store.nicknames().has("999000000069054")).toBe(false);
 
     store.close();
   });
 
   it("guarda a versão da foto e sempre avança", () => {
     const store = openAnimalStore(":memory:");
-    const chave = "076000003067836";
+    const chave = "999000000067836";
 
     expect(store.photoVersion(chave)).toBeNull();
 
@@ -55,21 +55,21 @@ describe("openAnimalStore", () => {
       status: "preparando",
       modo: "emitir",
       identidade: "viagem-1",
-      origemCodigo: "42-000165623",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000261071",
+      destinoCodigo: "42-900000002",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836", "076000003069054"],
+      animais: ["999000000067836", "999000000069054"],
     });
 
     const created = store.getGta(id);
     expect(created?.status).toBe("preparando");
     expect(created?.animais).toEqual([
-      "076000003067836",
-      "076000003069054",
+      "999000000067836",
+      "999000000069054",
     ]);
     expect(created?.numero).toBeNull();
 
@@ -94,14 +94,14 @@ describe("openAnimalStore", () => {
       status: "preparando" as const,
       modo: "emitir" as const,
       identidade: "viagem-1",
-      origemCodigo: "42-000165623",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000261071",
+      destinoCodigo: "42-900000002",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836"],
+      animais: ["999000000067836"],
     };
 
     const first = store.criarGtaSeLivre(viagem);
@@ -127,28 +127,28 @@ describe("openAnimalStore", () => {
       status: "emitida",
       modo: "emitir",
       identidade: "outra-viagem",
-      origemCodigo: "42-000165623",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000261071",
+      destinoCodigo: "42-900000002",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836"],
+      animais: ["999000000067836"],
     });
 
     const sobreposta = store.criarGtaSeLivre({
       status: "preparando",
       modo: "emitir",
       identidade: "viagem-2",
-      origemCodigo: "42-000165623",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000311195",
+      destinoCodigo: "42-900000004",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836", "076000003069054"],
+      animais: ["999000000067836", "999000000069054"],
     });
     expect(sobreposta).toMatchObject({
       ok: false,
@@ -160,14 +160,14 @@ describe("openAnimalStore", () => {
       status: "preparando",
       modo: "emitir",
       identidade: "viagem-3",
-      origemCodigo: "42-000165623",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000311195",
+      destinoCodigo: "42-900000004",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-26",
       dataValidade: "2026-10-29",
-      animais: ["076000003067836"],
+      animais: ["999000000067836"],
     });
     expect(outroDia.ok).toBe(true);
 
@@ -180,14 +180,14 @@ describe("openAnimalStore", () => {
       status: "erro" as const,
       modo: "emitir" as const,
       identidade: "viagem-1",
-      origemCodigo: "42-000165623",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000261071",
+      destinoCodigo: "42-900000002",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836"],
+      animais: ["999000000067836"],
     };
 
     store.createGta(base);
@@ -204,14 +204,14 @@ describe("openAnimalStore", () => {
       status: "preparando" as const,
       modo: "emitir" as const,
       identidade: "viagem-1",
-      origemCodigo: "42-000165623",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000261071",
+      destinoCodigo: "42-900000002",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836"],
+      animais: ["999000000067836"],
     };
 
     store.createGta({ ...base, modo: "conferir" });
@@ -226,14 +226,14 @@ describe("openAnimalStore", () => {
       status: "preparando",
       modo: "conferir",
       identidade: "viagem-1",
-      origemCodigo: "42-000165623",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000261071",
+      destinoCodigo: "42-900000002",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836"],
+      animais: ["999000000067836"],
     });
 
     store.recoverStaleGtas(
@@ -275,8 +275,8 @@ describe("openAnimalStore", () => {
         status, hash, origem_codigo, origem_uep, destino_codigo, destino_uep,
         finalidade, data_saida, data_validade, animais, criada_em, atualizada_em
       ) VALUES (
-        'emitida', 'hash-antigo', '42-000165623', '1', '42-000261071', '1',
-        'ENGORDA', '2026-10-25', '2026-10-28', '["076000003067836"]',
+        'emitida', 'hash-antigo', '42-900000001', '1', '42-900000002', '1',
+        'ENGORDA', '2026-10-25', '2026-10-28', '["999000000067836"]',
         '2026-10-25T10:00:00.000Z', '2026-10-25T10:01:00.000Z'
       );
     `);
@@ -297,14 +297,14 @@ describe("openAnimalStore", () => {
       status: "salvando",
       modo: "emitir",
       identidade: "viagem-1",
-      origemCodigo: "42-000165623",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000261071",
+      destinoCodigo: "42-900000002",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836"],
+      animais: ["999000000067836"],
     });
 
     const changed = store.recoverStaleGtas(
