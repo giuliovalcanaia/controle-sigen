@@ -98,8 +98,10 @@ export function InventoryCard({
         ))}
       </div>
 
-      <footer className="border-t border-cream-200 bg-white/60 px-5 py-3 text-[11px] text-bark-500">
-        Dados do SIGEN+ · o número em destaque é o brinco de manejo.
+      <footer className="border-t border-cream-200 bg-white/60 px-5 py-3">
+        <p className="text-[11px] text-bark-500">
+          Dados do SIGEN+ · o número em destaque é o brinco de manejo.
+        </p>
       </footer>
     </article>
   );

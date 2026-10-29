@@ -61,7 +61,7 @@ describe("collectUepIds", () => {
       },
     };
 
-    expect(collectUeps(body)).toEqual([
+    expect(collectUeps(body)).toMatchObject([
       { id: "10", especie: "BOVINO" },
       { id: "11", especie: "SUINO" },
       { id: "12", especie: null },
@@ -77,6 +77,42 @@ describe("collectUepIds", () => {
         ],
       },
     };
-    expect(collectUeps(body)).toEqual([{ id: "10", especie: "BOVINO" }]);
+    expect(collectUeps(body)).toMatchObject([{ id: "10", especie: "BOVINO" }]);
+  });
+
+  it("lê código, UEP, localidade, município, UF e produtor", () => {
+    const body = {
+      data: {
+        listaUep: [
+          {
+            idUnidadeExploracao: 169696,
+            nrUnidadeExploracao: 1,
+            propriedade: {
+              cdOficialFormatado: "42-900000001",
+              localidade: {
+                nmLocalidade: "Sede",
+                municipio: {
+                  nmMunicipio: "Vale do Cedro",
+                  uf: { sgUF: "", nrCodigoIBGE: 42 },
+                },
+              },
+            },
+            especieAnimal: { nmEspecieAnimal: "BOVINO" },
+            pessoaProdutor: { nmPessoa: "NOME" },
+          },
+        ],
+      },
+    };
+
+    expect(collectUeps(body)[0]).toEqual({
+      id: "169696",
+      nr: "1",
+      codigoOficial: "42-900000001",
+      localidade: "Sede",
+      municipio: "Vale do Cedro",
+      uf: "SC",
+      especie: "BOVINO",
+      produtor: "NOME",
+    });
   });
 });

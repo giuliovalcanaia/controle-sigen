@@ -9,13 +9,13 @@
 
 SIGEN+ Sistema de Gestão da Defesa Agropecuária Catarinense
                                                               Nome Unidade Exploração: NOME
-                                                              Código Oficial: 42-000261676                            Nº UEP: 2
+                                                              Código Oficial: 42-900000003                            Nº UEP: 2
                                                               Proprietário titular do imóvel: NOME      CPF/CNPJ: 00000000000
                                                               Tel. Residencial: (00) 00000-0000                         Tel. Celular: (00) 00000-0000
                                                               Responsável: NOME                         CPF/CNPJ: 00000000000
                                                               Local: Propriedade                                      Tipo Endereço: Estrada
                                                               Endereço: ENDERECO                                Nº: Não Informado
-                                                              CEP: 00000000                                           Localidade: Capivari - Doutor Pedrinho - SC
+                                                              CEP: 00000000                                           Localidade: Sede - Vale do Cedro - SC
                                                               Local de Leitura do GPS: Beira da Estrada               Altitude: Não Informado
                                                               Latitude: 00,000000
                                                               Espécie: BOVINO

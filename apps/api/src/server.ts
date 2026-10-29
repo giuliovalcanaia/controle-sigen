@@ -1,35 +1,61 @@
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 import { openAnimalStore } from "./db.js";
+import { createMockGtaService } from "./gta/mock.js";
+import { openGtaPdfStore } from "./gta/pdf.js";
+import { createGtaService, type GtaService } from "./gta/service.js";
+import { createInventoryService, type InventoryService } from "./inventory.js";
 import { openPhotoStore } from "./photos.js";
-import type { InventoryService } from "./routes.js";
 import { SigenClient } from "./sigen/client.js";
+import { createSigenGateway } from "./sigen/gateway.js";
 import { getMockInventory } from "./sigen/mock.js";
 import { SigenSession } from "./sigen/session.js";
 import type { SigenStatus } from "./sigen/types.js";
 
 const store = openAnimalStore(config.databasePath);
 const photos = openPhotoStore(config.photosDir, store);
+const gtaPdfs = openGtaPdfStore(config.gtaDir);
 
 let session: SigenSession | null = null;
 let inventory: InventoryService;
+let gta: GtaService;
 let getStatus: () => SigenStatus;
 let logout: () => Promise<void>;
 
 if (config.mock) {
-  inventory = { getInventory: async () => getMockInventory() };
+  inventory = createInventoryService({
+    load: async () => getMockInventory(),
+  });
+  gta = createMockGtaService(store, {
+    emissaoAtiva: config.gta.emissaoAtiva,
+  });
   getStatus = () => ({ state: "active", expiresInSeconds: 0 });
   logout = async () => undefined;
 } else {
-  session = new SigenSession(config.sigen);
-  const client = new SigenClient(session, config.sigen.baseUrl);
-  inventory = { getInventory: () => client.getInventory() };
-  getStatus = () => session!.getStatus();
-  logout = () => session!.logout();
+  const activeSession = new SigenSession(config.sigen);
+  session = activeSession;
+  const client = new SigenClient(activeSession, config.sigen.baseUrl);
+  const gateway = createSigenGateway({
+    client,
+    session: activeSession,
+    baseUrl: config.sigen.baseUrl,
+  });
+
+  inventory = createInventoryService({
+    load: (onProgress) => client.getInventory(onProgress),
+  });
+  gta = createGtaService({
+    gateway,
+    store,
+    pdfs: gtaPdfs,
+    emissaoAtiva: config.gta.emissaoAtiva,
+  });
+  getStatus = () => activeSession.getStatus();
+  logout = () => activeSession.logout();
 }
 
 const app = await buildApp(
-  { inventory, store, photos, getStatus, logout },
+  { inventory, store, photos, gta, getStatus, logout },
   { webDist: config.webDist },
 );
 

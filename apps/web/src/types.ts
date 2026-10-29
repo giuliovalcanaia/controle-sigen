@@ -1,39 +1,25 @@
-export type Sexo = "Fêmea" | "Macho";
-
-export type Animal = {
-  key: string;
-  brinco: string;
-  brincoOficial: string;
-  sexo: Sexo;
-  idade: { anos: number; meses: number };
-  nascimento: string;
-  apelido: string | null;
-  /** Versão da foto guardada no servidor; null quando não há foto. */
-  fotoVersao: number | null;
-};
-
-export type PropertyInventory = {
-  codigo: string;
-  localidade: string;
-  municipio: string;
-  uf: string;
-  ueps: string[];
-  animais: Animal[];
-};
-
-export type Inventory = {
-  buscadoEm: string;
-  total: number;
-  propriedades: PropertyInventory[];
-  avisos: string[];
-};
-
-export type SigenStatus = {
-  state: "logged_out" | "logging_in" | "active";
-  expiresInSeconds: number;
-};
+export type {
+  Animal,
+  GtaAnimalInput,
+  GtaConferenciaResultado,
+  GtaDestino,
+  GtaDestinoUep,
+  GtaEtapa,
+  GtaInput,
+  GtaJobView,
+  GtaOptions,
+  GtaStatus,
+  Inventory,
+  InventoryEtapa,
+  InventoryJobStatus,
+  InventoryJobView,
+  PropertyInventory,
+  Sexo,
+  SigenStatus,
+} from "@sigen/contracts";
 
 export type ApiErrorBody = {
   code?: string;
   message?: string;
+  detalhe?: { gtaId?: number };
 };

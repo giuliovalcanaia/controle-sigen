@@ -1,231 +1,174 @@
-# SIGEN Campo
+<p align="center">
+  <img src="docs/assets/hero.png" alt="SIGEN Campo: inventário bovino e GTA em um chat no celular" width="100%">
+</p>
 
-Leitura simplificada do inventário bovino do **SIGEN+ (CIDASC/SC)** para uso no celular, pensada para quem tem pouca familiaridade com o sistema oficial.
+<h1 align="center">SIGEN Campo</h1>
 
-O app mostra uma única coisa, muito bem: **todos os animais bovinos das propriedades do produtor, com brinco, apelido e foto**. Ele não substitui o SIGEN e não emite documentos.
+<p align="center">
+  O rebanho bovino do <strong>SIGEN+ (CIDASC/SC)</strong> e a emissão de GTA<br>
+  em um chat simples, feito para quem usa o celular no dia a dia.
+</p>
+
+<p align="center">
+  <a href="https://github.com/giuliovalcanaia/controle-sigen/actions/workflows/ci.yml"><img src="https://github.com/giuliovalcanaia/controle-sigen/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=black" alt="React 19">
+  <img src="https://img.shields.io/badge/Node.js-22.12+-339933?logo=node.js&logoColor=white" alt="Node.js 22">
+  <img src="https://img.shields.io/badge/PWA-instal%C3%A1vel-166534" alt="PWA">
+  <img src="https://img.shields.io/badge/licen%C3%A7a-MIT-166534" alt="MIT">
+</p>
+
+> [!NOTE]
+> **Projeto independente, não oficial.** O SIGEN Campo não é mantido pela CIDASC e não substitui o SIGEN+. Ele lê os dados da conta do próprio produtor e, quando habilitado, preenche a tela oficial da GTA com conferência antes de salvar.
+
+## O problema
+
+O SIGEN+ concentra a defesa agropecuária de Santa Catarina, mas o produtor que só quer ver o rebanho ou tirar uma GTA encontra uma interface pensada para o balcão do escritório: muitos campos, nomes técnicos e relatórios em PDF.
+
+O SIGEN Campo traduz esse fluxo para uma conversa. Ele mostra **todos os bovinos das propriedades**, com o número que o produtor realmente usa no dia a dia, e conduz a GTA em etapas — sem esconder que a GTA é um documento oficial.
+
+## O que ele faz
+
+- **Inventário em uma tela:** todos os bovinos, agrupados por propriedade/UEP, com **brinco de manejo**, apelido e foto.
+- **Apelidos e fotos locais:** o produtor nomeia cada animal e tira uma foto. A imagem é recortada e reduzida para 512×512 **no navegador**, sem EXIF, e fica só no servidor da instalação.
+- **GTA em conversa:** animais → CPF/CNPJ do destino → UEP → finalidade e datas → revisão → emissão ou conferência.
+- **Modo conferência:** com a emissão desligada, o app preenche a tela oficial do SIGEN e **para antes de salvar**. Nada é emitido.
+- **PWA instalável:** pensado para 390 px, com área segura de teclado e instalação na tela inicial.
+
+## Telas
+
+<table>
+  <tr>
+    <td width="33%" valign="top"><img src="docs/assets/screenshots/inventario.png" alt="Inventário com apelidos, brinco e foto"></td>
+    <td width="33%" valign="top"><img src="docs/assets/screenshots/gta-animais.png" alt="Seleção dos animais que vão sair"></td>
+    <td width="33%" valign="top"><img src="docs/assets/screenshots/gta-revisao.png" alt="Revisão da GTA antes de conferir no SIGEN"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Inventário com apelidos</sub></td>
+    <td align="center"><sub>Seleção dos animais</sub></td>
+    <td align="center"><sub>Revisão da GTA</sub></td>
+  </tr>
+</table>
+
+> As imagens acima saem do modo mock, com fixtures anonimizadas. Nenhum dado de produtor real aparece nelas.
+
+## Destaques de engenharia
+
+- **Parser de PDF que falha em vez de mentir.** O relatório do SIGEN é lido com `pdftotext -layout`; a quantidade de linhas é conferida contra `Qtde. Animais`. Se o layout mudar, o app lança `PDF_LAYOUT_MUDOU` e não devolve dados parciais.
+- **Uma sessão, um navegador.** O SIGEN derruba a sessão anterior quando outro login acontece. O app mantém um único `BrowserContext`, um mutex global e encerra por **20 minutos de ociosidade** — não por tempo total.
+- **Leitura por JSON, não por scraping.** Depois do login, o Playwright usa `context.request` contra os endpoints internos do SIGEN. A UI oficial só é usada para a GTA, que é uma tela ExtJS dentro de um iframe.
+- **GTA com reserva atômica.** A viagem (origem + animais + data) é reservada no SQLite antes de abrir o navegador. A mesma viagem não pode ser emitida duas vezes; se o `Add` responder de forma ambígua, o estado vira **incerta** e bloqueia até o produtor conferir no SIGEN.
+- **Privacidade por desenho.** CPF de terceiro é usado só para buscar a UEP, nunca é gravado e aparece mascarado. PDFs de GTA ficam com permissão `600` e `Cache-Control: no-store`. Não existe cache de animais: o SIGEN é a fonte da verdade.
+- **Contratos compartilhados.** API e PWA usam o mesmo pacote `@sigen/contracts` para tipos, datas e máscaras, evitando divergência entre servidor e interface.
 
 ## Como funciona
 
-```
-Celular (PWA) ──Tailscale──▶ tailscale serve (HTTPS)
-                                  │
-                                  ▼ 127.0.0.1:3000
-                         Fastify (PWA + API)
-                                  │
-                    ┌─────────────┴─────────────┐
-                    ▼                           ▼
-              SQLite (apelidos, fotos)    Playwright
-                                                │
-                                                ▼
-                                          SIGEN+ (CIDASC)
+```mermaid
+flowchart LR
+  phone["Celular<br/>PWA instalável"] -->|HTTPS| tailscale["tailscale serve<br/>(somente tailnet)"]
+  tailscale --> app["Fastify<br/>PWA + API"]
+  app --> sqlite[("SQLite<br/>apelidos, fotos e GTAs")]
+  app --> playwright["Playwright<br/>sessão única"]
+  playwright --> sigen["SIGEN+ (CIDASC)<br/>endpoints internos"]
 ```
 
-- O login no SIGEN é feito **sob demanda**, na primeira consulta.
-- Depois do login, o Playwright usa `context.request` para chamar os endpoints internos do SIGEN. Não há clique em tela nem scraping de HTML.
-- A sessão fica ativa por **20 minutos de ociosidade** e então é encerrada.
-- Cada consulta baixa um PDF por UEP bovina e o parser valida a contagem contra o total do próprio PDF.
-- O SIGEN é a fonte da verdade: **não existe cache de animais**. O SQLite guarda apenas os apelidos e as fotos que você adiciona.
+- O login acontece **sob demanda**, na primeira consulta.
+- O PDF de cada UEP é baixado, convertido em texto e validado fora do mutex da sessão.
+- A emissão da GTA é **desligada por padrão** (`GTA_EMISSAO_ATIVA=0`). Só depois de uma emissão real validada ela é habilitada no servidor.
 
-## Fotos dos animais
+## Stack
 
-- Toque no círculo ao lado do nome para abrir o diálogo da foto.
-- No diálogo: **Ver maior** (tela cheia), **Adicionar/Trocar foto** (galeria ou câmera) e **Remover foto**.
-- A foto é recortada no centro e reduzida para 512×512 **no celular**, antes de subir. Isso economiza rede e remove o EXIF da imagem (inclusive a localização).
-- Ela fica no servidor, em `data/fotos/<brinco oficial>.jpg`, e aparece em qualquer aparelho — não some ao limpar o navegador.
-- A foto não é do SIGEN: é um dado local, como o apelido. Nada é enviado para o CIDASC.
+| Camada | Tecnologias |
+|---|---|
+| PWA | React 19, Vite 8, Tailwind CSS 4, `vite-plugin-pwa` |
+| API | Node.js 22, Fastify 5, Zod 4, `better-sqlite3` |
+| Automação | Playwright (Chromium), `context.request` e driver da tela ExtJS |
+| Contratos | TypeScript workspaces (`@sigen/contracts`) |
+| Testes | Vitest (API + PWA) |
+| Infra | Docker Compose, `tailscale serve`, `poppler-utils` |
 
-## Requisitos
+## Rodando em 2 minutos
 
-- Node.js 22.12+
-- `poppler-utils` (`pdftotext`) no servidor
-- Chromium do Playwright
-- Tailscale no servidor e no celular (produção)
-
-```bash
-sudo apt install poppler-utils
-```
-
-## Desenvolvimento
+Sem credenciais do SIGEN: o modo mock usa as fixtures anonimizadas.
 
 ```bash
 npm install
-npx playwright install chromium
-cp .env.example .env
-```
-
-### Login sem colocar a senha no código
-
-```bash
-npm run sigen:login
-```
-
-Abre um Chromium visível. Faça o login normalmente; o script salva apenas os cookies em `.auth/state.json` (gitignored) e a resposta das UEPs em `fixtures/private/ueps.json`. A senha nunca é lida pelo script.
-
-Valide a leitura:
-
-```bash
-npm run sigen:check
-```
-
-Saída esperada: 4 propriedades, 12 bovinos.
-
-### Interface sem credenciais
-
-```bash
 SIGEN_MOCK=1 npm run dev
 ```
 
-O mock usa as fixtures sanitizadas de `fixtures/inventory`, então a interface pode ser desenvolvida sem tocar no SIGEN.
+Abra **http://127.0.0.1:5173**. A API sobe em `http://127.0.0.1:3000` e o Vite faz proxy de `/api`.
 
-### Rodar tudo
+> Requisitos: Node.js 22.12+ e `poppler-utils` (`pdftotext`) para ler PDFs reais. O Chromium do Playwright só é necessário para falar com o SIGEN: `npx playwright install chromium`.
 
-```bash
-npm run dev
-```
-
-- PWA: http://127.0.0.1:5173
-- API: http://127.0.0.1:3000
-- O Vite faz proxy de `/api` para a API.
-
-### Abrir no celular durante o desenvolvimento
-
-A API pode continuar em `127.0.0.1`: quem fala com o celular é o Vite, e o proxy dele encaminha `/api` para a API.
-
-```bash
-# recomendado: só na tailnet, usando o IP do Tailscale
-npm run dev:tailscale
-# no celular: http://<tailscale ip -4>:5173
-
-# alternativa: todas as interfaces (expõe na LAN também)
-npm run dev:lan
-# no celular: http://<IP-da-máquina>:5173
-```
-
-Use `npm run dev:lan` somente em rede confiável. O servidor de desenvolvimento do Vite não tem autenticação.
-
-Para testar **PWA instalável/HTTPS** no celular, use o build de produção com `tailscale serve` na 443; o service worker não é registrado no modo dev.
-
-### Testes
-
-```bash
-npm test
-# um arquivo só:
-npm run test -w @sigen/api -- src/sigen/pdf.test.ts
-npm run typecheck
-```
-
-## Produção
-
-```bash
-npm run build
-npm start
-```
-
-O Fastify serve `apps/web/dist` e a API na mesma origem.
-
-### Docker
+### Com o SIGEN real
 
 ```bash
 cp .env.example .env
-docker compose up -d --build
+npm run sigen:login   # abre o Chromium; salva só os cookies em .auth/
+npm run sigen:check   # valida a leitura do inventário
+npm run dev
 ```
 
-- Dentro do container a API escuta em `0.0.0.0:3000`; o Compose publica a porta apenas em `127.0.0.1:3000` do host.
-- `data/` guarda o SQLite; `.auth/` é montado somente leitura quando você usa a sessão salva.
-- A imagem oficial do Playwright já inclui o Chromium; `poppler-utils` é instalado no runtime.
+A senha nunca é digitada no código nem no app: o login é feito na tela oficial e a sessão fica no servidor. O passo a passo completo está em [`docs/operacao.md`](docs/operacao.md).
 
-### Servidor de produção
+## Scripts
 
-O sistema roda no `desktop-home` (`archlinux`, `100.117.79.72`, `desktop-home.tailb33a32.ts.net`) via Docker Compose.
+| Comando | O que faz |
+|---|---|
+| `npm run dev` | API + PWA em desenvolvimento |
+| `SIGEN_MOCK=1 npm run dev` | Interface com dados de demonstração, sem credenciais |
+| `npm test` | Vitest da API e do PWA |
+| `npm run typecheck` | TypeScript dos dois workspaces |
+| `npm run build` | Compila contratos, API e PWA |
+| `npm start` | Produção: o Fastify serve o PWA e a API |
+| `npm run sigen:login` | Login manual no SIGEN, sem senha no código |
+| `npm run sigen:check` | Confere o inventário real (somente leitura) |
+| `npm run sigen:gta:check` | Confere a tela de GTA (somente leitura) |
+| `npm run screenshots` | Gera as imagens deste README no modo mock |
+| `npm run deploy` | Publica o que está commitado (veja [`docs/operacao.md`](docs/operacao.md)) |
 
-Atualizar o código a partir da máquina de desenvolvimento:
+## Testes e CI
 
 ```bash
-npm run deploy
+npm test
+npm run typecheck
 ```
 
-O script `scripts/deploy.sh` exporta **apenas o que está commitado** (`git archive`), sincroniza com `rsync` e roda `docker compose up -d --build` por SSH. Pastas de estudo e arquivos não versionados nunca vão para o servidor.
-
-```bash
-SIGEN_DEPLOY_HOST=giulio@100.117.79.72 npm run deploy   # outro destino
-SIGEN_DEPLOY_REF=master npm run deploy                  # outro commit/branch
-```
-
-Se o branch atual não for `master`, o script avisa antes de publicar. Equivalente manual:
-
-```bash
-tmp=$(mktemp -d)
-git archive --format=tar HEAD | tar -xf - -C "$tmp"
-rsync -a --delete \
-  --exclude node_modules --exclude .git \
-  --exclude data --exclude .auth --exclude .env \
-  --exclude fixtures/private --exclude '*.pdf' \
-  "$tmp/" giulio@100.117.79.72:~/controle-sigen/
-rm -rf "$tmp"
-
-ssh giulio@100.117.79.72 'cd ~/controle-sigen && docker compose up -d --build'
-```
-
-O `.env` fica **somente no servidor**, com permissão `600`. O `data/` (apelidos e fotos) nunca é sobrescrito pelo `rsync`.
-
-### Tailscale
-
-No servidor (Tailscale 1.104+):
-
-```bash
-tailscale serve --bg 3000
-tailscale serve status
-```
-
-Em versões mais antigas do CLI: `sudo tailscale serve --bg https / http://127.0.0.1:3000`.
-
-No celular, instale o Tailscale, entre na mesma tailnet e abra `https://desktop-home.tailb33a32.ts.net`. Instale o app pelo menu do navegador (“Adicionar à tela inicial”).
-
-Com `sudo tailscale set --operator=$USER`, o `serve` passa a ser configurado sem `sudo` (use `tailscale serve --bg 3000`).
-
-> Não use `tailscale funnel`: ele publicaria o sistema na internet. O `serve` mantém o acesso restrito à tailnet.
->
-> HTTPS é obrigatório para o PWA ser instalável; o `tailscale serve` já fornece um certificado válido.
-
-## Decisões de domínio
-
-- **“Brinco” para o produtor é o Nº Manejo, de 6 dígitos.** É ele que aparece em destaque. O Nº Brinco oficial de 15 dígitos é a chave estável usada para guardar o apelido.
-- **Somente BOVINO.** Outras espécies podem existir nas UEPs, mas são ignoradas.
-- **Quatro propriedades hoje**, uma delas sem animais. A propriedade vazia aparece como “Sem animais”.
-- **Sem paginação ou busca**: o rebanho tem cerca de 12 animais.
-- **Sem LLM/MCP nesta versão.** A interface é um chat com uma única ação determinística.
-
-## Privacidade
-
-- Os PDFs do SIGEN contêm CPF, telefones, endereço e GPS. Eles ficam em `fixtures/private/`, que é gitignored.
-- As fixtures versionadas em `fixtures/inventory/` são extrações em texto com esses campos substituídos.
-- A senha do SIGEN nunca vai para o navegador do produtor; fica no servidor (`.env` ou secret do Docker) ou apenas na sessão salva localmente.
-- As fotos dos animais ficam em `data/fotos/`, no mesmo volume do SQLite. Elas saem do celular já sem metadados e nunca vão para o SIGEN, para o GitHub ou para a imagem Docker.
-- Proteja o `.env` com `chmod 600 .env`. Evite rodar `docker compose config` em logs/chats: ele imprime o conteúdo do `.env`, incluindo a senha.
-- O app não é oficial. A consulta é apenas de leitura.
+O workflow em [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda `typecheck`, testes e build em cada push para `master` e em pull requests. São **148 testes públicos**; em uma máquina com `fixtures/private`, os PDFs reais adicionam testes de integração locais. A suíte cobre o parser de PDF, o agrupamento do inventário, a política de emissão, a reserva da viagem, os contratos e as regras da conversa de GTA.
 
 ## Estrutura
 
-```
+```text
 apps/api/
-  src/sigen/          sessão Playwright, cliente SIGEN, parser de PDF
+  src/sigen/          sessão Playwright, cliente, parser de PDF e driver da GTA
+  src/gta/            serviço, política de emissão, runner, schema e mock
+  src/inventory.ts    job do inventário (coalescido, sem cache)
+  src/db.ts           SQLite (apelidos, fotos e histórico de GTAs)
   src/routes.ts       API REST
-  src/db.ts           SQLite (apelidos e versão das fotos)
-  src/photos.ts       arquivos das fotos em data/fotos
-  scripts/            login manual e verificação
 apps/web/             PWA React + Vite + Tailwind
-  src/photo.ts        recorte e redução da foto no navegador
-fixtures/inventory/   fixtures sanitizadas (versionadas)
-fixtures/private/     PDFs e capturas reais (gitignored)
+  src/gtaFlow.ts      regras da conversa de GTA (fases, voltar, validação)
+  src/components/     chat, inventário e cartões da GTA
+packages/contracts/   tipos, datas e máscaras compartilhados
+fixtures/inventory/   fixtures anonimizadas usadas nos testes e no mock
+docs/                 fluxo técnico da GTA, operação e imagens
 ```
 
-## Problemas comuns
+## Segurança e privacidade
 
-| Sintoma | Causa provável |
-|---|---|
-| `PDF_TOOL_MISSING` | Falta `poppler-utils` no servidor |
-| `Chromium não instalado` | Rode `npx playwright install chromium` |
-| `SEM_CREDENCIAIS` | Configure `.env` ou rode `npm run sigen:login` |
-| `SESSAO_EXPIRADA` | A sessão de 20 min caiu; a próxima consulta reloga |
-| `PDF_LAYOUT_MUDOU` | O SIGEN mudou o relatório; atualize o parser e as fixtures |
-| `UEP_LIST_EMPTY` | A conta não retornou UEPs ou o endpoint mudou |
+- **A GTA é um documento oficial.** Depois do `POST /SaidaAnimais/Add`, o app nunca repete o salvamento sozinho. Resposta ambígua vira **incerta** e o produtor confere no SIGEN.
+- **Emissão desligada por padrão.** `GTA_EMISSAO_ATIVA=0` só confere a tela; `1` é habilitado no servidor depois de uma emissão real validada.
+- **CPF não vaza.** O CPF do produtor vem da sessão e fica no servidor. O CPF de terceiro é usado só para buscar a UEP e emitir, não é gravado e aparece mascarado no histórico e nos erros.
+- **Fotos são dados locais.** Ficam em `data/fotos/<brinco oficial>.jpg`, já sem metadados, e nunca são enviadas ao SIGEN.
+- **PDFs de GTA são privados.** Ficam em `data/gta`, com permissão `600`, fora do git e servidos com `no-store`.
+- **Fixtures e imagens sem PII.** As fixtures versionadas usam códigos, localidades e brincos fictícios. As capturas do README saem do mock, em um banco temporário.
+
+## Documentação
+
+- [`docs/gta-fluxo.md`](docs/gta-fluxo.md) — mapa técnico da tela de GTA do SIGEN.
+- [`docs/operacao.md`](docs/operacao.md) — desenvolvimento, produção, Docker, Tailscale e problemas comuns.
+- [`GLOSSARY.md`](GLOSSARY.md) — vocabulário do domínio (manejo, brinco oficial, UEP, viagem, incerta).
+- [`AGENTS.md`](AGENTS.md) — convenções para agentes e contribuições automatizadas.
+
+## Licença
+
+[MIT](LICENSE). O SIGEN Campo é um projeto independente e não oficial, sem vínculo com a CIDASC. Use por sua conta e risco: a conferência no SIGEN continua sendo a fonte da verdade.

@@ -1,18 +1,25 @@
+import { sanitizeErrorMessage } from "@sigen/contracts";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { AnimalStore } from "./db.js";
+import type { GtaService } from "./gta/service.js";
+import {
+  firstIssue,
+  gtaInputSchema,
+  gtaLookupSchema,
+  isValidIsoDate,
+  todayIso,
+} from "./gta/schema.js";
+import type { InventoryService } from "./inventory.js";
 import { isJpeg, type PhotoStore } from "./photos.js";
 import { mergeExtras } from "./sigen/inventory.js";
-import type { Inventory, SigenError, SigenStatus } from "./sigen/types.js";
-
-export type InventoryService = {
-  getInventory(): Promise<Inventory>;
-};
+import type { SigenError, SigenStatus } from "./sigen/types.js";
 
 export type RouteDeps = {
   inventory: InventoryService;
   store: AnimalStore;
   photos: PhotoStore;
+  gta: GtaService;
   getStatus(): SigenStatus;
   logout(): Promise<void>;
 };
@@ -71,16 +78,43 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps) {
 
   app.get("/api/status", async () => ({ sigen: deps.getStatus() }));
 
-  app.get("/api/animals", async (_request, reply) => {
-    const inventory = await deps.inventory.getInventory();
-    const merged = mergeExtras(
-      inventory,
-      deps.store.nicknames(),
-      deps.store.photoVersions(),
-    );
-    reply.header("Cache-Control", "no-store");
-    return merged;
+  app.post("/api/inventario", async (_request, reply) => {
+    return reply.code(202).send(deps.inventory.start());
   });
+
+  app.get<{ Params: { id: string } }>(
+    "/api/inventario/:id",
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return reply.code(400).send({
+          code: "DADOS_INVALIDOS",
+          message: "Identificador de consulta inválido.",
+        });
+      }
+
+      const job = deps.inventory.get(id);
+      if (!job) {
+        return reply.code(404).send({
+          code: "NAO_ENCONTRADO",
+          message: "Consulta não encontrada.",
+        });
+      }
+
+      // O inventário precisa dos apelidos e das fotos locais, aplicados
+      // depois do parser (o job guarda só o que veio do SIGEN).
+      if (!job.inventario) return job;
+
+      return {
+        ...job,
+        inventario: mergeExtras(
+          job.inventario,
+          deps.store.nicknames(),
+          deps.store.photoVersions(),
+        ),
+      };
+    },
+  );
 
   app.put<{ Params: { animalKey: string } }>(
     "/api/nicknames/:animalKey",
@@ -165,6 +199,131 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps) {
     },
   );
 
+  app.get("/api/gta/opcoes", async () => deps.gta.options());
+
+  const gtaDestinosSchema = gtaLookupSchema.extend({
+    dataSaida: z.string().trim().optional(),
+  });
+
+  app.post("/api/gta/destinos", async (request, reply) => {
+    const body = gtaDestinosSchema.safeParse(request.body);
+    if (!body.success) {
+      return reply.code(400).send({
+        code: "DADOS_INVALIDOS",
+        message: firstIssue(body.error),
+      });
+    }
+
+    const dataSaida =
+      body.data.dataSaida && isValidIsoDate(body.data.dataSaida)
+        ? body.data.dataSaida
+        : todayIso();
+    const ueps = await deps.gta.lookupDestinos(body.data.cpf, dataSaida);
+    return { ueps };
+  });
+
+  const gtaStartSchema = z.object({
+    gta: gtaInputSchema,
+    modo: z.enum(["conferir", "emitir"]).default("emitir"),
+  });
+
+  app.post("/api/gta", async (request, reply) => {
+    const body = gtaStartSchema.safeParse(request.body);
+    if (!body.success) {
+      return reply.code(400).send({
+        code: "DADOS_INVALIDOS",
+        message: firstIssue(body.error),
+      });
+    }
+
+    const result = await deps.gta.start({
+      input: body.data.gta,
+      modo: body.data.modo,
+    });
+    return reply.code(202).send(result);
+  });
+
+  const gtaConferenciaSchema = z.object({
+    resultado: z.enum(["emitida", "nao_emitida"]),
+    numero: z.string().trim().max(30).optional(),
+  });
+
+  app.post<{ Params: { id: string } }>(
+    "/api/gta/:id/conferencia",
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return reply.code(400).send({
+          code: "DADOS_INVALIDOS",
+          message: "Identificador de GTA inválido.",
+        });
+      }
+
+      const body = gtaConferenciaSchema.safeParse(request.body);
+      if (!body.success) {
+        return reply.code(400).send({
+          code: "DADOS_INVALIDOS",
+          message: firstIssue(body.error),
+        });
+      }
+
+      return deps.gta.resolver(
+        id,
+        body.data.resultado,
+        body.data.numero,
+      );
+    },
+  );
+
+  app.get("/api/gta", async () => ({ gtas: deps.gta.list(20) }));
+
+  app.get<{ Params: { id: string } }>("/api/gta/:id", async (request, reply) => {
+    const id = Number(request.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return reply.code(400).send({
+        code: "DADOS_INVALIDOS",
+        message: "Identificador de GTA inválido.",
+      });
+    }
+
+    const job = deps.gta.get(id);
+    if (!job) {
+      return reply.code(404).send({
+        code: "NAO_ENCONTRADO",
+        message: "Emissão de GTA não encontrada.",
+      });
+    }
+    return job;
+  });
+
+  app.get<{ Params: { id: string } }>(
+    "/api/gta/:id/pdf",
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return reply.code(400).send({
+          code: "DADOS_INVALIDOS",
+          message: "Identificador de GTA inválido.",
+        });
+      }
+
+      const pdf = deps.gta.pdf(id);
+      if (!pdf) {
+        return reply.code(404).send({
+          code: "PDF_NAO_ENCONTRADO",
+          message: "O PDF desta GTA não está disponível.",
+        });
+      }
+
+      return reply
+        .header("Content-Type", "application/pdf")
+        .header("Cache-Control", "private, no-store")
+        .header("X-Content-Type-Options", "nosniff")
+        .header("Content-Disposition", `inline; filename="gta-${id}.pdf"`)
+        .send(pdf);
+    },
+  );
+
   app.post("/api/session/logout", async () => {
     await deps.logout();
     return { ok: true };
@@ -183,13 +342,15 @@ export async function registerRoutes(app: FastifyInstance, deps: RouteDeps) {
 
     const sigenError = error as Partial<SigenError> & { code?: string };
     if (sigenError.code && typeof sigenError.statusCode === "number") {
+      const message = sanitizeErrorMessage(sigenError.message ?? "");
       request.log.warn(
         { code: sigenError.code, statusCode: sigenError.statusCode },
-        sigenError.message,
+        message,
       );
       return reply.code(sigenError.statusCode).send({
         code: sigenError.code,
-        message: sigenError.message,
+        message,
+        ...(sigenError.detalhe ? { detalhe: sigenError.detalhe } : {}),
       });
     }
 

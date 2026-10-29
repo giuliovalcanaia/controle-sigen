@@ -4,13 +4,19 @@ import {
   Loader2,
   LogOut,
   RefreshCw,
-  ShieldCheck,
   WifiOff,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, api } from "./api";
+import { ApiError, api, fetchInventory } from "./api";
+import {
+  AssistantAvatar,
+  AssistantBubble,
+  AssistantShell,
+  UserBubble,
+} from "./components/ChatBubble";
 import { Composer } from "./components/Composer";
 import { CowMark } from "./components/CowMark";
+import { GtaChat } from "./components/GtaChat";
 import { InventoryCard } from "./components/InventoryCard";
 import { NicknameDialog } from "./components/NicknameDialog";
 import { PhotoDialog } from "./components/PhotoDialog";
@@ -21,27 +27,49 @@ import { describeError, withNickname, withPhoto } from "./utils";
 type Message =
   | { id: number; role: "user"; kind: "text"; text: string }
   | { id: number; role: "assistant"; kind: "text"; text: string }
-  | { id: number; role: "assistant"; kind: "inventory"; inventory: Inventory }
+  | { id: number; role: "assistant"; kind: "inventory" }
+  | { id: number; role: "assistant"; kind: "gta"; inventory: Inventory }
   | { id: number; role: "assistant"; kind: "error"; code: string; text: string };
 
 const LIST_RE =
   /animais|rebanho|listar|lista|mostrar|ver|meus|quantos|cabe[cç]as|bois|vacas|gado|bovin/i;
+const GTA_RE = /gta|guia de tr[aâ]nsito/i;
 
 let nextId = 1;
 const uid = () => nextId++;
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [inventory, setInventory] = useState<Inventory | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("Buscando os animais no SIGEN...");
   const [status, setStatus] = useState<SigenStatus | null>(null);
   const [editing, setEditing] = useState<Animal | null>(null);
   const [photoAnimal, setPhotoAnimal] = useState<Animal | null>(null);
+  const [gtaOpening, setGtaOpening] = useState(false);
+  const [busyGtaIds, setBusyGtaIds] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+  const [gtaInput, setGtaInput] = useState<{
+    flowId: number;
+    handler: (text: string) => void;
+    prompt: string;
+  } | null>(null);
+  const [activeGtaId, setActiveGtaId] = useState<number | null>(null);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const lastRequest = useRef("Ver todos os animais");
   const busy = useRef(false);
   const scrollToResult = useRef(false);
+  const inventoryGeneration = useRef(0);
+  const gtaStarting = useRef(false);
+
+  // O "ocupado" é derivado dos fluxos que se declaram ocupados pelo id,
+  // não de um boolean que qualquer conversa montada pode desligar.
+  const gtaBusy = gtaOpening || busyGtaIds.size > 0;
+  // O campo de texto só obedece ao fluxo ativo.
+  const gtaPrompt =
+    gtaInput && gtaInput.flowId === activeGtaId ? gtaInput.prompt : null;
 
   useEffect(() => {
     api
@@ -66,6 +94,17 @@ export default function App() {
       return;
     }
 
+    // A conversa de GTA é alta: alinhamos o topo para o produtor ver a
+    // origem e a lista de animais, e não o fim do cartão.
+    if (last?.kind === "gta") {
+      const cards = document.querySelectorAll("[data-gta-message]");
+      cards[cards.length - 1]?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      return;
+    }
+
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, loading]);
 
@@ -73,9 +112,10 @@ export default function App() {
     async (text = "Ver todos os animais", options?: { refresh?: boolean }) => {
       // Evita dois logins/consultas se o botão for tocado duas vezes antes
       // do React renderizar o estado de carregamento.
-      if (busy.current) return;
+      if (busy.current || gtaBusy) return;
       busy.current = true;
       lastRequest.current = text;
+      const geracao = ++inventoryGeneration.current;
 
       if (!options?.refresh) {
         setMessages((previous) => [
@@ -93,15 +133,28 @@ export default function App() {
       setLoading(true);
 
       try {
-        const inventory = await api.getInventory();
+        const inventory = await fetchInventory((job) => {
+          if (geracao !== inventoryGeneration.current) return;
+          setLoadingText(
+            job.total > 0
+              ? `Lendo propriedade ${job.atual} de ${job.total}...`
+              : "Entrando no SIGEN...",
+          );
+        });
+
+        if (geracao !== inventoryGeneration.current) return;
+
+        setInventory(inventory);
         setStatus((current) =>
           current ? { ...current, state: "active" } : { state: "active", expiresInSeconds: 0 },
         );
         setMessages((previous) => [
           ...previous.filter((message) => message.kind !== "inventory"),
-          { id: uid(), role: "assistant", kind: "inventory", inventory },
+          { id: uid(), role: "assistant", kind: "inventory" },
         ]);
       } catch (error) {
+        if (geracao !== inventoryGeneration.current) return;
+
         const { code, text: message } = describeError(error);
         setMessages((previous) => [
           ...previous,
@@ -115,10 +168,168 @@ export default function App() {
         setLoading(false);
       }
     },
-    [status?.state],
+    [status?.state, gtaBusy],
   );
 
+  const handleGtaBusyChange = useCallback(
+    (flowId: number, busy: boolean) => {
+      if (busy) setGtaOpening(false);
+
+      setBusyGtaIds((current) => {
+        const has = current.has(flowId);
+        if (has === busy) return current;
+
+        const next = new Set(current);
+        if (busy) next.add(flowId);
+        else next.delete(flowId);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleGtaTextRequest = useCallback(
+    (
+      flowId: number,
+      handler: ((text: string) => void) | null,
+      prompt?: string,
+    ) => {
+      setGtaInput((current) => {
+        if (!handler) {
+          return current?.flowId === flowId ? null : current;
+        }
+
+        const texto = prompt ?? "CPF ou CNPJ do destino";
+        if (
+          current?.flowId === flowId &&
+          current.handler === handler &&
+          current.prompt === texto
+        ) {
+          return current;
+        }
+
+        return { flowId, handler, prompt: texto };
+      });
+    },
+    [],
+  );
+
+  const startGtaFlow = useCallback(
+    async (options?: { userText?: string; restart?: boolean }) => {
+      if (gtaStarting.current) return;
+      if (!options?.restart && gtaBusy) return;
+
+      gtaStarting.current = true;
+      setGtaOpening(true);
+      setGtaInput(null);
+
+      let created = false;
+      const geracao = inventoryGeneration.current;
+      const userText = options?.userText;
+      if (userText) {
+        setMessages((previous) => [
+          ...previous,
+          { id: uid(), role: "user", kind: "text", text: userText },
+        ]);
+      }
+
+      try {
+        let atual = inventory;
+
+        if (!atual) {
+          setLoadingText(
+            status?.state === "active"
+              ? "Buscando seus animais no SIGEN..."
+              : "Entrando no SIGEN...",
+          );
+          setLoading(true);
+
+          try {
+            atual = await fetchInventory((job) => {
+              if (geracao !== inventoryGeneration.current) return;
+              setLoadingText(
+                job.total > 0
+                  ? `Lendo propriedade ${job.atual} de ${job.total}...`
+                  : "Entrando no SIGEN...",
+              );
+            });
+
+            if (geracao !== inventoryGeneration.current) return;
+
+            setInventory(atual);
+            setStatus((current) =>
+              current
+                ? { ...current, state: "active" }
+                : { state: "active", expiresInSeconds: 0 },
+            );
+          } catch (error) {
+            if (geracao !== inventoryGeneration.current) return;
+
+            const { code, text } = describeError(error);
+            setMessages((previous) => [
+              ...previous,
+              { id: uid(), role: "assistant", kind: "error", code, text },
+            ]);
+            setGtaOpening(false);
+            if (
+              code === "SESSAO_EXPIRADA" ||
+              code === "CREDENCIAIS_INVALIDAS"
+            ) {
+              setStatus({ state: "logged_out", expiresInSeconds: 0 });
+            }
+            return;
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        if (!atual) return;
+
+        const messageId = uid();
+        created = true;
+        setActiveGtaId(messageId);
+        setMessages((previous) => [
+          ...previous,
+          { id: messageId, role: "assistant", kind: "gta", inventory: atual },
+        ]);
+      } finally {
+        gtaStarting.current = false;
+        // No sucesso, quem libera o "abrindo" é o efeito do novo fluxo.
+        if (!created) setGtaOpening(false);
+      }
+    },
+    [gtaBusy, inventory, status?.state],
+  );
+
+  const handleGtaRestart = useCallback(() => {
+    void startGtaFlow({ restart: true });
+  }, [startGtaFlow]);
+
   function handleSend(text: string) {
+    const waiting = gtaInput?.flowId === activeGtaId ? gtaInput : null;
+    if (waiting) {
+      waiting.handler(text);
+      return;
+    }
+
+    if (gtaBusy) {
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: uid(),
+          role: "assistant",
+          kind: "text",
+          text: "Termine a GTA que está em andamento abaixo.",
+        },
+      ]);
+      return;
+    }
+
+    if (GTA_RE.test(text)) {
+      void startGtaFlow({ userText: text });
+      return;
+    }
+
     if (LIST_RE.test(text)) {
       void runList(text);
       return;
@@ -131,7 +342,7 @@ export default function App() {
         id: uid(),
         role: "assistant",
         kind: "text",
-        text: "Por enquanto eu só sei mostrar os animais. Toque em “Ver todos os animais” que eu busco no SIGEN.",
+        text: "Posso mostrar os animais ou preparar uma GTA. Use os botões abaixo: “Ver todos os animais” ou “Fazer GTA”.",
       },
     ]);
   }
@@ -146,26 +357,17 @@ export default function App() {
       throw new Error("Não consegui salvar o apelido. Tente de novo.");
     }
 
-    setMessages((previous) =>
-      previous.map((message) =>
-        message.kind === "inventory"
-          ? {
-              ...message,
-              inventory: withNickname(message.inventory, editing.key, apelido || null),
-            }
-          : message,
-      ),
+    setInventory((previous) =>
+      previous
+        ? withNickname(previous, editing.key, apelido || null)
+        : previous,
     );
     setEditing(null);
   }
 
   const applyPhoto = useCallback((animalKey: string, fotoVersao: number | null) => {
-    setMessages((previous) =>
-      previous.map((message) =>
-        message.kind === "inventory"
-          ? { ...message, inventory: withPhoto(message.inventory, animalKey, fotoVersao) }
-          : message,
-      ),
+    setInventory((previous) =>
+      previous ? withPhoto(previous, animalKey, fotoVersao) : previous,
     );
     // Mantém o diálogo aberto já com a foto nova (ou sem foto).
     setPhotoAnimal((current) =>
@@ -201,7 +403,8 @@ export default function App() {
     applyPhoto(photoAnimal.key, null);
   }
 
-  async function logout() {    if (logoutBusy) return;
+  async function logout() {
+    if (logoutBusy || gtaBusy) return;
     if (!window.confirm("Encerrar a sessão do SIGEN agora?")) return;
 
     setLogoutBusy(true);
@@ -214,6 +417,12 @@ export default function App() {
       setStatus({ state: "logged_out", expiresInSeconds: 0 });
       setMessages([]);
     } finally {
+      inventoryGeneration.current += 1;
+      setInventory(null);
+      setGtaInput(null);
+      setBusyGtaIds(new Set());
+      setGtaOpening(false);
+      setActiveGtaId(null);
       setLogoutBusy(false);
     }
   }
@@ -237,10 +446,12 @@ export default function App() {
           <button
             type="button"
             onClick={() => void logout()}
-            disabled={logoutBusy}
+            disabled={logoutBusy || gtaBusy}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-cream-100/80 transition hover:bg-white/10 disabled:opacity-50"
             aria-label="Sair do SIGEN"
-            title="Sair do SIGEN"
+            title={
+              gtaBusy ? "Termine a GTA antes de sair" : "Sair do SIGEN"
+            }
           >
             {logoutBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogOut className="h-5 w-5" />}
           </button>
@@ -261,8 +472,13 @@ export default function App() {
               <ChatMessage
                 key={message.id}
                 message={message}
+                inventory={inventory}
                 onEdit={setEditing}
                 onPhoto={setPhotoAnimal}
+                onGtaBusy={handleGtaBusyChange}
+                onGtaTextRequest={handleGtaTextRequest}
+                onGtaRestart={handleGtaRestart}
+                gtaActive={message.id === activeGtaId}
                 onRefresh={() => void runList(lastRequest.current, { refresh: true })}
                 onRetry={() => void runList(lastRequest.current, { refresh: true })}
                 refreshing={loading}
@@ -276,8 +492,11 @@ export default function App() {
 
         <Composer
           loading={loading}
+          gtaBusy={gtaBusy}
+          gtaPrompt={gtaPrompt}
           onSend={handleSend}
           onList={() => void runList()}
+          onGta={() => void startGtaFlow()}
         />
       </main>
 
@@ -326,34 +545,44 @@ function Welcome({ onList }: { onList: () => void }) {
 
 function ChatMessage({
   message,
+  inventory,
   onEdit,
   onPhoto,
+  onGtaBusy,
+  onGtaTextRequest,
+  onGtaRestart,
+  gtaActive,
   onRefresh,
   onRetry,
   refreshing,
 }: {
   message: Message;
+  inventory: Inventory | null;
   onEdit: (animal: Animal) => void;
   onPhoto: (animal: Animal) => void;
+  onGtaBusy: (flowId: number, busy: boolean) => void;
+  onGtaTextRequest: (
+    flowId: number,
+    handler: ((text: string) => void) | null,
+    prompt?: string,
+  ) => void;
+  onGtaRestart: () => void;
+  gtaActive: boolean;
   onRefresh: () => void;
   onRetry: () => void;
   refreshing: boolean;
 }) {
   if (message.role === "user") {
-    return (
-      <div className="message-enter flex justify-end">
-        <p className="max-w-[85%] rounded-3xl rounded-br-md bg-forest-700 px-4 py-2.5 text-[15px] font-semibold text-white shadow-sm">
-          {message.text}
-        </p>
-      </div>
-    );
+    return <UserBubble>{message.text}</UserBubble>;
   }
 
   if (message.kind === "inventory") {
+    if (!inventory) return null;
+
     return (
       <div className="message-enter scroll-mt-6" data-inventory-message>
         <InventoryCard
-          inventory={message.inventory}
+          inventory={inventory}
           onEdit={onEdit}
           onPhoto={onPhoto}
           onRefresh={onRefresh}
@@ -363,11 +592,23 @@ function ChatMessage({
     );
   }
 
+  if (message.kind === "gta") {
+    return (
+      <GtaChat
+        flowId={message.id}
+        inventory={message.inventory}
+        active={gtaActive}
+        onBusyChange={onGtaBusy}
+        onTextRequest={onGtaTextRequest}
+        onRestart={onGtaRestart}
+      />
+    );
+  }
+
   if (message.kind === "error") {
     return (
-      <div className="message-enter flex gap-2.5">
-        <AssistantAvatar />
-        <div className="max-w-[34rem] rounded-3xl rounded-tl-md border border-red-200 bg-red-50 px-4 py-3 text-red-900 shadow-sm">
+      <AssistantShell>
+        <div className="rounded-3xl rounded-tl-md border border-red-200 bg-red-50 px-4 py-3 text-red-900 shadow-sm">
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
@@ -383,25 +624,20 @@ function ChatMessage({
             </div>
           </div>
         </div>
-      </div>
+      </AssistantShell>
     );
   }
 
-  return (
-    <div className="message-enter flex gap-2.5">
-      <AssistantAvatar />
-      <p className="max-w-[34rem] rounded-3xl rounded-tl-md border border-cream-200 bg-cream-50 px-4 py-3 text-[15px] leading-relaxed text-bark-700 shadow-sm">
-        {message.text}
-      </p>
-    </div>
-  );
+  return <AssistantBubble>{message.text}</AssistantBubble>;
 }
 
 function LoadingBubble({ text }: { text: string }) {
   return (
-    <div className="message-enter flex gap-2.5" aria-live="polite">
-      <AssistantAvatar />
-      <div className="rounded-3xl rounded-tl-md border border-cream-200 bg-cream-50 px-4 py-3 shadow-sm">
+    <AssistantShell>
+      <div
+        className="rounded-3xl rounded-tl-md border border-cream-200 bg-cream-50 px-4 py-3 shadow-sm"
+        aria-live="polite"
+      >
         <p className="flex items-center gap-2 text-sm font-semibold text-bark-700">
           <Loader2 className="h-4 w-4 animate-spin text-forest-700" />
           {text}
@@ -410,18 +646,7 @@ function LoadingBubble({ text }: { text: string }) {
           Estou consultando o SIGEN. Isso pode levar alguns segundos.
         </p>
       </div>
-    </div>
-  );
-}
-
-function AssistantAvatar() {
-  return (
-    <div
-      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-forest-700 text-white shadow-sm"
-      aria-hidden="true"
-    >
-      <ShieldCheck className="h-5 w-5" />
-    </div>
+    </AssistantShell>
   );
 }
 

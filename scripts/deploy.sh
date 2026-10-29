@@ -3,18 +3,31 @@
 #
 # Uso:
 #   npm run deploy
+#   SIGEN_DEPLOY_HOST=usuario@servidor npm run deploy
 #   SIGEN_DEPLOY_REF=master npm run deploy
-#   SIGEN_DEPLOY_HOST=giulio@100.117.79.72 npm run deploy
 #
+# O host padrão fica em `.deploy.env` (gitignored) ou em SIGEN_DEPLOY_HOST.
 # Só entram arquivos versionados: pastas de estudo, `.env`, `data/` e
 # `.auth/` ficam de fora e continuam intactos no servidor.
 set -euo pipefail
 
-HOST="${SIGEN_DEPLOY_HOST:-giulio@100.117.79.72}"
+cd "$(dirname "$0")/.."
+
+if [ -f .deploy.env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.deploy.env
+  set +a
+fi
+
+HOST="${SIGEN_DEPLOY_HOST:-}"
 DEST="${SIGEN_DEPLOY_DIR:-~/controle-sigen}"
 REF="${SIGEN_DEPLOY_REF:-HEAD}"
 
-cd "$(dirname "$0")/.."
+if [ -z "$HOST" ]; then
+  echo "Defina SIGEN_DEPLOY_HOST (ou crie .deploy.env) com usuario@servidor." >&2
+  exit 1
+fi
 
 branch="$(git rev-parse --abbrev-ref "$REF")"
 commit="$(git rev-parse --short "$REF")"
@@ -37,6 +50,7 @@ rsync -a --delete \
   --exclude '.git' \
   --exclude '.env' \
   --exclude '.env.*' \
+  --exclude '.deploy.env' \
   --exclude '.auth' \
   --exclude 'data' \
   --exclude 'fixtures/private' \
@@ -48,4 +62,4 @@ rsync -a --delete \
 echo "Reconstruindo e reiniciando o container"
 ssh "$HOST" "cd $DEST && docker compose up -d --build"
 
-echo "Pronto. Verifique com: curl -s https://desktop-home.tailb33a32.ts.net/api/health"
+echo "Pronto. Verifique com: ssh $HOST 'curl -s http://127.0.0.1:3000/api/health'"

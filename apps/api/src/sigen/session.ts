@@ -84,6 +84,27 @@ export class SigenSession {
     });
   }
 
+  /**
+   * Igual a `withContext`, mas entrega a página e **nunca repete** a função.
+   *
+   * A emissão de GTA é uma escrita: se a sessão cair depois do clique em
+   * Salvar, repetir a função poderia emitir duas GTAs. Quem chama decide o
+   * que fazer com o erro.
+   */
+  async withWritePage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+    return this.mutex.run(async () => {
+      await this.ensureLoggedIn();
+      this.touch();
+
+      try {
+        const page = await this.ensurePage();
+        return await fn(page);
+      } finally {
+        this.touch();
+      }
+    });
+  }
+
   async logout(): Promise<void> {
     await this.mutex.run(async () => {
       await this.closeContext(true);
@@ -124,8 +145,16 @@ export class SigenSession {
     });
   }
 
-  private async getBrowser(): Promise<Browser> {
-    if (this.browser?.isConnected()) return this.browser;
+  private async ensurePage(): Promise<Page> {
+    if (this.page && !this.page.isClosed()) return this.page;
+    if (!this.context) {
+      throw new SigenError("SESSAO_EXPIRADA", "A sessão do SIGEN expirou.");
+    }
+    this.page = await this.context.newPage();
+    return this.page;
+  }
+
+  private async getBrowser(): Promise<Browser> {    if (this.browser?.isConnected()) return this.browser;
     try {
       this.browser = await chromium.launch({
         headless: true,

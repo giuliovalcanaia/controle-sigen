@@ -25,28 +25,28 @@ describe("groupInventories", () => {
     const porCodigo = new Map(
       inventory.propriedades.map((property) => [property.codigo, property]),
     );
-    expect(porCodigo.get("42-000165623")?.animais).toHaveLength(4);
-    expect(porCodigo.get("42-000261071")?.animais).toHaveLength(3);
-    expect(porCodigo.get("42-000311195")?.animais).toHaveLength(5);
-    expect(porCodigo.get("42-000261676")?.animais).toHaveLength(0);
+    expect(porCodigo.get("42-900000001")?.animais).toHaveLength(4);
+    expect(porCodigo.get("42-900000002")?.animais).toHaveLength(3);
+    expect(porCodigo.get("42-900000004")?.animais).toHaveLength(5);
+    expect(porCodigo.get("42-900000003")?.animais).toHaveLength(0);
   });
 
   it("mantém a propriedade sem animais", () => {
     const inventory = groupInventories(allParsed());
-    const vazia = inventory.propriedades.find((p) => p.codigo === "42-000261676");
+    const vazia = inventory.propriedades.find((p) => p.codigo === "42-900000003");
     expect(vazia).toBeDefined();
     expect(vazia?.animais).toHaveLength(0);
-    expect(vazia?.localidade).toBe("Capivari");
+    expect(vazia?.localidade).toBe("Sede");
   });
 
   it("ignora espécies que não sejam BOVINO", () => {
     const parsed = allParsed();
-    const suino = parsed.find((item) => item.codigoOficial === "42-000261071");
+    const suino = parsed.find((item) => item.codigoOficial === "42-900000002");
     if (!suino) throw new Error("fixture ausente");
     suino.especie = "SUINO";
 
     const inventory = groupInventories(parsed);
-    const ribeirao = inventory.propriedades.find((p) => p.codigo === "42-000261071");
+    const ribeirao = inventory.propriedades.find((p) => p.codigo === "42-900000002");
     expect(ribeirao).toBeUndefined();
     expect(inventory.total).toBe(9);
   });
@@ -59,7 +59,7 @@ describe("groupInventories", () => {
     if (!alvo) throw new Error("animal ausente");
 
     const merged = mergeExtras(inventory, new Map([[alvo.key, "Mimosa"]]));
-    const ribeirao = merged.propriedades.find((p) => p.codigo === "42-000261071");
+    const ribeirao = merged.propriedades.find((p) => p.codigo === "42-900000002");
     const atualizado = ribeirao?.animais.find((animal) => animal.key === alvo.key);
 
     expect(atualizado?.apelido).toBe("Mimosa");
