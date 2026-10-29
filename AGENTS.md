@@ -18,6 +18,7 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 - Login manual (abre Chromium visível): `npm run sigen:login`
 - Verificação ponta a ponta: `npm run sigen:check`
 - Checagem somente leitura da tela de GTA: `npm run sigen:gta:check`
+- Imagens do README (mock, banco temporário): `npm run screenshots`
 - Diagnóstico da resposta de UEPs (sem PII): `npm run sigen:inspect -w @sigen/api`
 - A sessão manual fica em `.auth/state.json` (gitignored); a API a usa quando `SIGEN_STORAGE_STATE` aponta para ela.
 - npm 12 bloqueia scripts de instalação. Se adicionar dependência com `postinstall`, aprove com `npm install-scripts approve <pkg>`; o `allowScripts` do `package.json` registra as exceções.
@@ -68,7 +69,7 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 - Permissão de apoio (somente leitura): `POST .../SaidaAnimais/VerificarPermissaoApoio`.
 - O mapa completo está em `docs/gta-fluxo.md`.
 - O vocabulário do domínio (manejo, brinco oficial, UEP, viagem, incerta) está em `GLOSSARY.md`.
-- Hoje: 4 propriedades, 12 bovinos, uma propriedade sem animais (deve aparecer como “Sem animais”).
+- Hoje as fixtures têm 4 propriedades, 12 bovinos e uma propriedade sem animais (deve aparecer como “Sem animais”).
 - O produtor chama o manejo de “brinco”; o número oficial de 15 dígitos é interno.
 
 ## Fixtures e PII
@@ -98,7 +99,7 @@ npm run build && npm start  # produção: Fastify serve o PWA e a API
 
 ## Deploy
 
-- Servidor de produção: `desktop-home` (`archlinux`, `100.117.79.72`, `desktop-home.tailb33a32.ts.net`), Docker Compose em `~/controle-sigen`.
+- Servidor de produção: host Linux acessado por SSH via Docker Compose (o endereço fica em `.deploy.env` ou em `SIGEN_DEPLOY_HOST`, nunca no repositório).
 - Atualizar: `npm run deploy` (`git archive` + `rsync` + `docker compose up -d --build`); o script está em `scripts/deploy.sh`.
 - O deploy envia **somente arquivos commitados**. Pastas não versionadas (estudos, capturas) nunca vão para o servidor.
 - `tailscale serve --bg 3000` publica em HTTPS na tailnet (CLI 1.104+). Nunca use `tailscale funnel`.

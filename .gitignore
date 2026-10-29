@@ -23,3 +23,6 @@ apps/web/dev-dist/
 
 # capturas do fluxo de GTA (contêm CPF, telefone e endereço)
 Fluxo emitir GTA/
+
+# host do deploy (contém dados de infraestrutura)
+.deploy.env
