@@ -166,6 +166,18 @@ SIGEN_DEPLOY_HOST=usuario@servidor npm run deploy   # outro destino
 SIGEN_DEPLOY_REF=master npm run deploy              # outro commit/branch
 ```
 
+### Backup antes do deploy
+
+O `rsync` usa `--delete` e remove arquivos não versionados dentro de `~/controle-sigen`. Guarde o backup **fora** desse diretório:
+
+```bash
+ssh usuario@servidor \
+  'dest="$HOME/controle-sigen-backups/data-$(date +%F-%H%M%S)"; \
+   mkdir -p "$dest"; cp -a "$HOME/controle-sigen/data/." "$dest/"'
+```
+
+`data/` contém o SQLite, as fotos e os PDFs das GTAs. O script exclui `backups/` do espelhamento por segurança, mas a pasta recomendada continua sendo `~/controle-sigen-backups`.
+
 Se o branch atual não for `master`, o script avisa antes de publicar. Equivalente manual:
 
 ```bash
@@ -173,7 +185,7 @@ tmp=$(mktemp -d)
 git archive --format=tar HEAD | tar -xf - -C "$tmp"
 rsync -a --delete \
   --exclude node_modules --exclude .git \
-  --exclude data --exclude .auth --exclude .env \
+  --exclude data --exclude backups --exclude .auth --exclude .env \
   --exclude fixtures/private --exclude '*.pdf' \
   "$tmp/" usuario@servidor:~/controle-sigen/
 rm -rf "$tmp"

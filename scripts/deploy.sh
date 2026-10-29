@@ -45,6 +45,8 @@ trap 'rm -rf "$tmp"' EXIT
 git archive --format=tar "$REF" | tar -xf - -C "$tmp"
 
 echo "Enviando $branch ($commit) para $HOST:$DEST"
+# `backups/` fica fora do espelho: o ideal é guardar o backup fora de DEST,
+# mas o exclude evita que um backup local seja apagado pelo --delete.
 rsync -a --delete \
   --exclude 'node_modules' \
   --exclude '.git' \
@@ -53,6 +55,7 @@ rsync -a --delete \
   --exclude '.deploy.env' \
   --exclude '.auth' \
   --exclude 'data' \
+  --exclude 'backups' \
   --exclude 'fixtures/private' \
   --exclude '*.pdf' \
   --exclude '*.log' \
