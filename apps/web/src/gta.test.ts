@@ -29,16 +29,16 @@ function animal(key: string, brinco: string, uep?: string): Animal {
 }
 
 const property: PropertyInventory = {
-  codigo: "42-000165623",
-  localidade: "Capivari",
-  municipio: "Doutor Pedrinho",
+  codigo: "42-900000001",
+  localidade: "Sede",
+  municipio: "Vale do Cedro",
   uf: "SC",
   ueps: ["1"],
   animais: [
-    animal("076000003067836", "067836", "1"),
-    animal("076000003069054", "069054", "1"),
-    animal("105420236855019", "685501", "2"),
-    animal("076000009702664", "702664"),
+    animal("999000000067836", "067836", "1"),
+    animal("999000000069054", "069054", "1"),
+    animal("999000000685501", "685501", "2"),
+    animal("999000000702664", "702664"),
   ],
 };
 
@@ -52,6 +52,7 @@ function job(overrides: Partial<GtaJobView> = {}): GtaJobView {
     numero: null,
     temPdf: false,
     erro: null,
+    codigo: null,
     criadaEm: "2026-10-25T10:00:00.000Z",
     atualizadaEm: "2026-10-25T10:00:00.000Z",
     ...overrides,
@@ -88,7 +89,7 @@ describe("GTA no cliente", () => {
       origemUep: "1",
       destino: {
         tipo: "propria",
-        property: { ...property, codigo: "42-000261071" },
+        property: { ...property, codigo: "42-900000002" },
         uep: "1",
       },
       animais: [property.animais[0]!, property.animais[1]!],
@@ -103,15 +104,15 @@ describe("GTA no cliente", () => {
     });
 
     expect(input).toEqual({
-      origem: { codigoOficial: "42-000165623", uep: "1" },
+      origem: { codigoOficial: "42-900000001", uep: "1" },
       destino: {
         tipo: "propria",
-        codigoOficial: "42-000261071",
+        codigoOficial: "42-900000002",
         uep: "1",
       },
       animais: [
-        { key: "076000003067836", brinco: "067836" },
-        { key: "076000003069054", brinco: "069054" },
+        { key: "999000000067836", brinco: "067836" },
+        { key: "999000000069054", brinco: "069054" },
       ],
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
@@ -131,10 +132,10 @@ describe("GTA no cliente", () => {
         cpf: "12345678901",
         uep: {
           id: "911677",
-          codigoOficial: "42-000311195",
+          codigoOficial: "42-900000004",
           uep: "1",
-          localidade: "Coqueiral",
-          municipio: "Doutor Pedrinho",
+          localidade: "Alto da Serra",
+          municipio: "Vale do Cedro",
           uf: "SC",
           especie: "BOVINO",
           produtor: "Vizinho",
@@ -154,7 +155,7 @@ describe("GTA no cliente", () => {
     expect(input.destino).toEqual({
       tipo: "terceiro",
       cpf: "12345678901",
-      codigoOficial: "42-000311195",
+      codigoOficial: "42-900000004",
       uep: "1",
     });
   });
@@ -176,6 +177,7 @@ describe("GTA no cliente", () => {
   it("traduz os estados", () => {
     expect(gtaStatusText("emitida")).toBe("Emitida");
     expect(gtaStatusText("conferida")).toBe("Conferida");
+    expect(gtaStatusText("nao_emitida")).toBe("Não emitida");
     expect(gtaStatusText("incerta")).toBe("Conferir no SIGEN");
     expect(gtaStatusText("salvando")).toBe("Em andamento");
   });
@@ -191,8 +193,8 @@ describe("GTA no cliente", () => {
     const units = buildOriginUnits(inventory);
 
     expect(units.map((unit) => [unit.property.codigo, unit.uep])).toEqual([
-      ["42-000165623", "1"],
-      ["42-000165623", "2"],
+      ["42-900000001", "1"],
+      ["42-900000001", "2"],
     ]);
     expect(units[0]?.animals.map((item) => item.brinco)).toEqual([
       "067836",
@@ -235,9 +237,9 @@ describe("GTA no cliente", () => {
       avisos: [],
       propriedades: [
         {
-          codigo: "42-000261676",
-          localidade: "Capivari",
-          municipio: "Doutor Pedrinho",
+          codigo: "42-900000003",
+          localidade: "Sede",
+          municipio: "Vale do Cedro",
           uf: "SC",
           ueps: ["2"],
           animais: [],

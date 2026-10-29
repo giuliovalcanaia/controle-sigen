@@ -88,7 +88,8 @@ Nenhum dado pessoal real aparece aqui. Os exemplos usam códigos genéricos.
 - O CPF do responsável vem da própria sessão (`nrDocumentoRegistro`). Não é
   enviado ao navegador do produtor nem gravado em log.
 - Depois do `Add`, qualquer falha ambígua vira `incerta`; o app nunca repete o
-  salvamento sozinho.
+  salvamento sozinho. A viagem fica bloqueada até o produtor responder no app
+  se a GTA foi emitida.
 - O endpoint `QuickSearch` é POST. Um GET devolve 404 em HTML.
 
 ## Verificação somente leitura

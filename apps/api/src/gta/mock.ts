@@ -8,8 +8,9 @@ import {
   GTA_UF,
   GTA_VALIDADE_DIAS,
 } from "./constants.js";
+import { createEmissao } from "./emissao.js";
 import type { GtaService } from "./service.js";
-import { addDaysIso, gtaHash, todayIso } from "./schema.js";
+import { addDaysIso, todayIso } from "./schema.js";
 import type {
   GtaDestinoUep,
   GtaJobView,
@@ -21,8 +22,15 @@ import type {
  * Emissão simulada para desenvolver a interface sem SIGEN.
  * Preenche o banco igual ao serviço real, mas conclui com um número falso.
  */
-export function createMockGtaService(store: AnimalStore): GtaService {
+export function createMockGtaService(
+  store: AnimalStore,
+  options: { emissaoAtiva?: boolean } = {},
+): GtaService {
+  // O mock respeita a mesma chave do serviço real: com a emissão desligada,
+  // a interface mostra "Conferir no SIGEN" e nunca oferece o salvamento.
+  const emissaoAtiva = options.emissaoAtiva ?? true;
   const progress = new Map<number, GtaProgresso>();
+  const emissao = createEmissao(store);
 
   function defaultProgress(record: GtaRecord): GtaProgresso {
     const total = record.animais.length;
@@ -44,6 +52,7 @@ export function createMockGtaService(store: AnimalStore): GtaService {
       numero: record.numero,
       temPdf: false,
       erro: record.erro,
+      codigo: record.codigo,
       criadaEm: record.criadaEm,
       atualizadaEm: record.atualizadaEm,
     };
@@ -59,7 +68,7 @@ export function createMockGtaService(store: AnimalStore): GtaService {
         validadePadrao: addDaysIso(hoje, GTA_VALIDADE_DIAS),
         maxAnimais: GTA_MAX_ANIMAIS,
         uf: GTA_UF,
-        emissaoAtiva: true,
+        emissaoAtiva,
       };
     },
 
@@ -108,18 +117,7 @@ export function createMockGtaService(store: AnimalStore): GtaService {
         );
       }
 
-      const id = store.createGta({
-        status: "preparando",
-        hash: gtaHash(input),
-        origemCodigo: input.origem.codigoOficial,
-        origemUep: input.origem.uep,
-        destinoCodigo: input.destino.codigoOficial,
-        destinoUep: input.destino.uep,
-        finalidade: input.finalidade,
-        dataSaida: input.dataSaida,
-        dataValidade: input.dataValidade,
-        animais: input.animais.map((animal) => animal.key),
-      });
+      const id = emissao.reservar(input, request.modo);
 
       progress.set(id, {
         etapa: "conferindo",
@@ -144,6 +142,11 @@ export function createMockGtaService(store: AnimalStore): GtaService {
       timer.unref?.();
 
       return { id, status: "preparando" };
+    },
+
+    resolver(id, resultado, numero) {
+      emissao.resolver(id, resultado, numero);
+      return get(id)!;
     },
 
     get,

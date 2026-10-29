@@ -1,8 +1,6 @@
-import type { Page } from "playwright";
 import type { AnimalStore, GtaRecord } from "../db.js";
-import type { SigenClient } from "../sigen/client.js";
-import { PlaywrightGtaForm, gtaErrorMessage, type GtaForm } from "../sigen/gta.js";
-import type { SigenSession } from "../sigen/session.js";
+import { gtaErrorMessage } from "../sigen/gta.js";
+import type { SigenGateway } from "../sigen/gateway.js";
 import { SigenError } from "../sigen/types.js";
 import {
   GTA_FINALIDADES,
@@ -11,12 +9,15 @@ import {
   GTA_UF,
   GTA_VALIDADE_DIAS,
 } from "./constants.js";
+import { createEmissao } from "./emissao.js";
 import type { GtaPdfStore } from "./pdf.js";
 import { runGtaJob } from "./runner.js";
-import { addDaysIso, gtaHash, todayIso } from "./schema.js";
+import { addDaysIso, todayIso } from "./schema.js";
 import type {
+  GtaConferenciaResultado,
   GtaDestinoUep,
   GtaFormInput,
+  GtaInput,
   GtaJobView,
   GtaOptions,
   GtaProgresso,
@@ -28,23 +29,24 @@ export type GtaService = {
   options(): GtaOptions;
   lookupDestinos(cpf: string, dataSaida: string): Promise<GtaDestinoUep[]>;
   start(request: GtaStartRequest): Promise<{ id: number; status: GtaStatus }>;
+  /** Resolve uma GTA incerta com a resposta do produtor. */
+  resolver(
+    id: number,
+    resultado: GtaConferenciaResultado,
+    numero?: string,
+  ): GtaJobView;
   get(id: number): GtaJobView | null;
   list(limit: number): GtaJobView[];
   pdf(id: number): Buffer | null;
 };
 
 export type GtaServiceDeps = {
-  client: SigenClient;
-  session: SigenSession;
+  gateway: SigenGateway;
   store: AnimalStore;
   pdfs: GtaPdfStore;
-  baseUrl: string;
   emissaoAtiva: boolean;
-  /** Injetável nos testes. */
-  formFactory?: (page: Page) => GtaForm;
 };
 
-const DUPLICATE_WINDOW_MS = 30 * 60_000;
 const STALE_WINDOW_MS = 10 * 60_000;
 
 function defaultProgress(record: GtaRecord): GtaProgresso {
@@ -62,17 +64,10 @@ function defaultProgress(record: GtaRecord): GtaProgresso {
 }
 
 export function createGtaService(deps: GtaServiceDeps): GtaService {
-  const {
-    client,
-    session,
-    store,
-    pdfs,
-    baseUrl,
-    emissaoAtiva,
-    formFactory = (page: Page) => new PlaywrightGtaForm(page, baseUrl),
-  } = deps;
+  const { gateway, store, pdfs, emissaoAtiva } = deps;
 
   const progress = new Map<number, GtaProgresso>();
+  const emissao = createEmissao(store);
 
   // Um processo que caiu no meio de uma emissão não pode ficar "salvando"
   // para sempre: vira incerta e o produtor confere no SIGEN.
@@ -97,14 +92,69 @@ export function createGtaService(deps: GtaServiceDeps): GtaService {
       numero: record.numero,
       temPdf: Boolean(record.pdfPath),
       erro: record.erro,
+      codigo: record.codigo,
       criadaEm: record.criadaEm,
       atualizadaEm: record.atualizadaEm,
     };
   }
 
+  /**
+   * Resolve os IDs internos da origem e do destino. Roda dentro do job, não
+   * no POST: o pedido HTTP só reserva a viagem e devolve o id.
+   */
+  async function resolverUeps(input: GtaInput): Promise<GtaFormInput> {
+    const ueps = await gateway.listUeps();
+    const findUep = (codigo: string, nr: string) =>
+      ueps.find(
+        (uep) =>
+          uep.especie?.toUpperCase() === "BOVINO" &&
+          uep.codigoOficial === codigo &&
+          uep.nr === nr,
+      );
+
+    const origem = findUep(input.origem.codigoOficial, input.origem.uep);
+    const destinoInput = input.destino;
+    const destino =
+      destinoInput.tipo === "terceiro"
+        ? (await gateway.quickSearchUeps(destinoInput.cpf, input.dataSaida)).find(
+            (uep) =>
+              uep.codigoOficial === destinoInput.codigoOficial &&
+              uep.uep === destinoInput.uep,
+          )
+        : findUep(destinoInput.codigoOficial, destinoInput.uep);
+
+    if (!origem || !destino) {
+      throw new SigenError(
+        "GTA_UEP_INVALIDA",
+        "Não encontrei a propriedade de origem ou de destino no SIGEN.",
+        400,
+      );
+    }
+
+    if (
+      (origem.uf && origem.uf !== GTA_UF) ||
+      (destino.uf && destino.uf !== GTA_UF)
+    ) {
+      throw new SigenError(
+        "GTA_UEP_INVALIDA",
+        "Por enquanto a GTA é emitida somente dentro de Santa Catarina.",
+        400,
+      );
+    }
+
+    return {
+      ...input,
+      origemUepId: origem.id,
+      destinoUepId: destino.id,
+      documentoOrigem: "",
+      documentoDestino:
+        input.destino.tipo === "terceiro" ? input.destino.cpf : "",
+    };
+  }
+
   async function run(
     id: number,
-    input: GtaFormInput,
+    input: GtaInput,
     modo: "conferir" | "emitir",
   ): Promise<void> {
     let saveStarted = false;
@@ -117,11 +167,11 @@ export function createGtaService(deps: GtaServiceDeps): GtaService {
         total: input.animais.length,
       });
 
-      const result = await session.withWritePage(async (page) => {
-        const form = formFactory(page);
-        return runGtaJob(
+      const formInput = await resolverUeps(input);
+      const result = await gateway.runGtaForm((form) =>
+        runGtaJob(
           form,
-          input,
+          formInput,
           modo,
           (atual, total) => {
             progress.set(id, { etapa: "animais", atual, total });
@@ -135,11 +185,11 @@ export function createGtaService(deps: GtaServiceDeps): GtaService {
               total: input.animais.length,
             });
           },
-        );
-      });
+        ),
+      );
 
       if (result.status === "conferida") {
-        store.updateGta(id, { status: "conferida", erro: null });
+        store.updateGta(id, { status: "conferida", erro: null, codigo: null });
         progress.set(id, {
           etapa: "concluido",
           atual: input.animais.length,
@@ -162,6 +212,7 @@ export function createGtaService(deps: GtaServiceDeps): GtaService {
         numero: result.numero,
         pdfPath,
         erro: null,
+        codigo: null,
       });
       progress.set(id, {
         etapa: "concluido",
@@ -179,11 +230,13 @@ export function createGtaService(deps: GtaServiceDeps): GtaService {
           status: "incerta",
           erro:
             "Não sei se a GTA foi emitida. Confira no SIGEN antes de tentar de novo.",
+          codigo: code,
         });
       } else {
         store.updateGta(id, {
           status: "erro",
           erro: gtaErrorMessage(error),
+          codigo: code,
         });
       }
 
@@ -213,7 +266,7 @@ export function createGtaService(deps: GtaServiceDeps): GtaService {
       const data = /^\d{4}-\d{2}-\d{2}$/.test(dataSaida)
         ? dataSaida
         : todayIso();
-      return client.quickSearchUeps(cpf, data);
+      return gateway.quickSearchUeps(cpf, data);
     },
 
     async start(request) {
@@ -226,101 +279,11 @@ export function createGtaService(deps: GtaServiceDeps): GtaService {
       }
 
       const { input } = request;
-      const ueps = await client.getUeps();
-      const findUep = (codigo: string, nr: string) =>
-        ueps.find(
-          (uep) =>
-            uep.especie?.toUpperCase() === "BOVINO" &&
-            uep.codigoOficial === codigo &&
-            uep.nr === nr,
-        );
 
-      const origem = findUep(input.origem.codigoOficial, input.origem.uep);
-      const destinoInput = input.destino;
-      const destino =
-        destinoInput.tipo === "terceiro"
-          ? (
-              await client.quickSearchUeps(
-                destinoInput.cpf,
-                input.dataSaida,
-              )
-            ).find(
-              (uep) =>
-                uep.codigoOficial === destinoInput.codigoOficial &&
-                uep.uep === destinoInput.uep,
-            )
-          : findUep(destinoInput.codigoOficial, destinoInput.uep);
-
-      if (!origem || !destino) {
-        throw new SigenError(
-          "GTA_UEP_INVALIDA",
-          "Não encontrei a propriedade de origem ou de destino no SIGEN.",
-          400,
-        );
-      }
-
-      if (
-        (origem.uf && origem.uf !== GTA_UF) ||
-        (destino.uf && destino.uf !== GTA_UF)
-      ) {
-        throw new SigenError(
-          "GTA_UEP_INVALIDA",
-          "Por enquanto a GTA é emitida somente dentro de Santa Catarina.",
-          400,
-        );
-      }
-
-      const hash = gtaHash(input);
-
-      if (request.modo === "emitir") {
-        const since = new Date(Date.now() - DUPLICATE_WINDOW_MS).toISOString();
-
-        const active = store.findRecentGta(
-          hash,
-          ["preparando", "preenchendo", "salvando"],
-          since,
-        );
-        if (active) {
-          throw new SigenError(
-            "GTA_EM_ANDAMENTO",
-            "Já existe uma emissão desta mesma GTA em andamento.",
-            409,
-          );
-        }
-
-        const incerta = store.findRecentGta(hash, ["incerta"], since);
-        if (incerta) {
-          throw new SigenError(
-            "GTA_INCERTA",
-            "A última tentativa desta GTA ficou incerta. Confira no SIGEN antes de tentar de novo.",
-            409,
-          );
-        }
-
-        const emitida = store.findRecentGta(hash, ["emitida"], since);
-        if (emitida && !request.forcar) {
-          throw new SigenError(
-            "GTA_JA_EMITIDA",
-            emitida.numero
-              ? `Esta GTA já foi emitida (nº ${emitida.numero}).`
-              : "Esta GTA já foi emitida há pouco.",
-            409,
-          );
-        }
-      }
-
-      const id = store.createGta({
-        status: "preparando",
-        hash,
-        origemCodigo: input.origem.codigoOficial,
-        origemUep: input.origem.uep,
-        destinoCodigo: input.destino.codigoOficial,
-        destinoUep: input.destino.uep,
-        finalidade: input.finalidade,
-        dataSaida: input.dataSaida,
-        dataValidade: input.dataValidade,
-        animais: input.animais.map((animal) => animal.key),
-      });
+      // O POST só faz trabalho local: reserva a viagem e devolve o id.
+      // Resolver UEPs, preencher a tela e salvar acontecem no job, com
+      // progresso em `GET /api/gta/:id`.
+      const id = emissao.reservar(input, request.modo);
 
       progress.set(id, {
         etapa: "conferindo",
@@ -328,18 +291,14 @@ export function createGtaService(deps: GtaServiceDeps): GtaService {
         total: input.animais.length,
       });
 
-      const formInput: GtaFormInput = {
-        ...input,
-        origemUepId: origem.id,
-        destinoUepId: destino.id,
-        documentoOrigem: "",
-        documentoDestino:
-          input.destino.tipo === "terceiro" ? input.destino.cpf : "",
-      };
-
-      void run(id, formInput, request.modo);
+      void run(id, input, request.modo);
 
       return { id, status: "preparando" as GtaStatus };
+    },
+
+    resolver(id, resultado, numero) {
+      emissao.resolver(id, resultado, numero);
+      return get(id)!;
     },
 
     get,

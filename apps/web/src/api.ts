@@ -1,22 +1,31 @@
 import type {
   ApiErrorBody,
+  GtaConferenciaResultado,
   GtaDestinoUep,
   GtaInput,
   GtaJobView,
   GtaOptions,
   Inventory,
+  InventoryJobView,
   SigenStatus,
 } from "./types";
 
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
+  readonly detalhe?: { gtaId?: number };
 
-  constructor(code: string, message: string, status: number) {
+  constructor(
+    code: string,
+    message: string,
+    status: number,
+    detalhe?: { gtaId?: number },
+  ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
+    this.detalhe = detalhe;
   }
 }
 
@@ -41,6 +50,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
         body.code ?? "ERRO",
         body.message ?? "Não foi possível concluir a operação.",
         response.status,
+        body.detalhe,
       );
     }
 
@@ -61,7 +71,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  getInventory: () => request<Inventory>("/api/animals"),
+  startInventory: () =>
+    request<{ id: number }>("/api/inventario", { method: "POST" }),
+  getInventoryJob: (id: number) =>
+    request<InventoryJobView>(`/api/inventario/${id}`),
   getStatus: () => request<{ sigen: SigenStatus }>("/api/status"),
   setNickname: (animalKey: string, apelido: string) =>
     request<{ ok: true; apelido: string | null }>(
@@ -87,12 +100,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ cpf, dataSaida }),
     }),
-  startGta: (body: {
-    gta: GtaInput;
-    modo: "conferir" | "emitir";
-    forcar?: boolean;
-  }) =>
+  startGta: (body: { gta: GtaInput; modo: "conferir" | "emitir" }) =>
     request<{ id: number; status: string }>("/api/gta", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  resolverGta: (
+    id: number,
+    body: { resultado: GtaConferenciaResultado; numero?: string },
+  ) =>
+    request<GtaJobView>(`/api/gta/${id}/conferencia`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
@@ -101,3 +118,40 @@ export const api = {
   gtaPdfUrl: (id: number) => `/api/gta/${id}/pdf`,
   logout: () => request<{ ok: true }>("/api/session/logout", { method: "POST" }),
 };
+
+/**
+ * Acompanha o job do inventário. O POST é imediato; o trabalho continua no
+ * servidor mesmo se o navegador desistir. Uma nova tentativa reaproveita a
+ * consulta que ainda estiver rodando.
+ */
+export async function fetchInventory(
+  onJob?: (job: InventoryJobView) => void,
+): Promise<Inventory> {
+  const { id } = await api.startInventory();
+  const limite = Date.now() + 10 * 60_000;
+
+  for (;;) {
+    const job = await api.getInventoryJob(id);
+    onJob?.(job);
+
+    if (job.status === "pronto" && job.inventario) return job.inventario;
+
+    if (job.status === "erro") {
+      throw new ApiError(
+        job.codigo ?? "SIGEN_ERRO",
+        job.erro ?? "Não consegui buscar os animais.",
+        0,
+      );
+    }
+
+    if (Date.now() > limite) {
+      throw new ApiError(
+        "TEMPO_ESGOTADO",
+        "O SIGEN demorou demais para responder. Tente de novo.",
+        504,
+      );
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 800));
+  }
+}

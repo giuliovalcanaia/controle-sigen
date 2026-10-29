@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   addDaysIso,
-  gtaHash,
   gtaInputSchema,
   isValidIsoDate,
   maskDocumento,
@@ -13,9 +12,9 @@ import type { GtaInput } from "./types.js";
 function input(overrides: Partial<GtaInput> = {}): GtaInput {
   const hoje = todayIso();
   return {
-    origem: { codigoOficial: "42-000165623", uep: "1" },
-    destino: { tipo: "propria", codigoOficial: "42-000261071", uep: "1" },
-    animais: [{ key: "076000003067836", brinco: "067836" }],
+    origem: { codigoOficial: "42-900000001", uep: "1" },
+    destino: { tipo: "propria", codigoOficial: "42-900000002", uep: "1" },
+    animais: [{ key: "999000000067836", brinco: "067836" }],
     finalidade: "ENGORDA",
     dataSaida: addDaysIso(hoje, 1),
     dataValidade: addDaysIso(hoje, 4),
@@ -42,52 +41,6 @@ describe("datas", () => {
   });
 });
 
-describe("hash de duplicidade", () => {
-  it("não muda com a ordem dos animais", () => {
-    const a = input({
-      animais: [
-        { key: "076000003067836", brinco: "067836" },
-        { key: "076000003069054", brinco: "069054" },
-      ],
-    });
-    const b = input({
-      animais: [
-        { key: "076000003069054", brinco: "069054" },
-        { key: "076000003067836", brinco: "067836" },
-      ],
-    });
-    expect(gtaHash(a)).toBe(gtaHash(b));
-  });
-
-  it("muda quando o destino muda", () => {
-    const a = input();
-    const b = input({
-      destino: { tipo: "propria", codigoOficial: "42-000311195", uep: "1" },
-    });
-    expect(gtaHash(a)).not.toBe(gtaHash(b));
-  });
-
-  it("não inclui o CPF do destino", () => {
-    const a = input({
-      destino: {
-        tipo: "terceiro",
-        cpf: "11111111111",
-        codigoOficial: "42-000261071",
-        uep: "1",
-      },
-    });
-    const b = input({
-      destino: {
-        tipo: "terceiro",
-        cpf: "22222222222",
-        codigoOficial: "42-000261071",
-        uep: "1",
-      },
-    });
-    expect(gtaHash(a)).toBe(gtaHash(b));
-  });
-});
-
 describe("documentos", () => {
   it("mascara CPF e CNPJ", () => {
     expect(maskDocumento("12345678901")).toBe("***.***.***-01");
@@ -97,6 +50,12 @@ describe("documentos", () => {
   it("remove documentos de mensagens de erro", () => {
     expect(sanitizeErrorMessage("CPF 12345678901 inválido")).toBe(
       "CPF ***.***.***-01 inválido",
+    );
+    expect(sanitizeErrorMessage("CPF 123.456.789-01 inválido")).toBe(
+      "CPF ***.***.***-01 inválido",
+    );
+    expect(sanitizeErrorMessage("CNPJ 12.345.678/0001-99 recusado")).toBe(
+      "CNPJ **.***.***/****-99 recusado",
     );
   });
 });
@@ -110,7 +69,7 @@ describe("schema da GTA", () => {
   it("rejeita destino igual à origem", () => {
     const result = gtaInputSchema.safeParse(
       input({
-        destino: { tipo: "propria", codigoOficial: "42-000165623", uep: "1" },
+        destino: { tipo: "propria", codigoOficial: "42-900000001", uep: "1" },
       }),
     );
     expect(result.success).toBe(false);
@@ -120,8 +79,8 @@ describe("schema da GTA", () => {
     const result = gtaInputSchema.safeParse(
       input({
         animais: [
-          { key: "076000003067836", brinco: "067836" },
-          { key: "076000003067836", brinco: "067836" },
+          { key: "999000000067836", brinco: "067836" },
+          { key: "999000000067836", brinco: "067836" },
         ],
       }),
     );

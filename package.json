@@ -4,22 +4,25 @@
   "private": true,
   "description": "Leitura simplificada do inventário bovino do SIGEN+ para o produtor rural",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @sigen/api\" \"npm run dev -w @sigen/web\"",
-    "dev:lan": "concurrently -n api,web -c blue,green \"npm run dev -w @sigen/api\" \"npm run dev:lan -w @sigen/web\"",
-    "dev:tailscale": "concurrently -n api,web -c blue,green \"npm run dev -w @sigen/api\" \"npm run dev -w @sigen/web -- --host $(tailscale ip -4)\"",
-    "dev:api": "npm run dev -w @sigen/api",
-    "dev:web": "npm run dev -w @sigen/web",
-    "build": "npm run build -w @sigen/api && npm run build -w @sigen/web",
+    "build:contracts": "npm run build -w @sigen/contracts",
+    "dev": "npm run build:contracts && concurrently -n contracts,api,web -c yellow,blue,green \"npm run dev -w @sigen/contracts\" \"npm run dev -w @sigen/api\" \"npm run dev -w @sigen/web\"",
+    "dev:lan": "npm run build:contracts && concurrently -n contracts,api,web -c yellow,blue,green \"npm run dev -w @sigen/contracts\" \"npm run dev -w @sigen/api\" \"npm run dev:lan -w @sigen/web\"",
+    "dev:tailscale": "npm run build:contracts && concurrently -n contracts,api,web -c yellow,blue,green \"npm run dev -w @sigen/contracts\" \"npm run dev -w @sigen/api\" \"npm run dev -w @sigen/web -- --host $(tailscale ip -4)\"",
+    "dev:api": "npm run build:contracts && npm run dev -w @sigen/api",
+    "dev:web": "npm run build:contracts && npm run dev -w @sigen/web",
+    "build": "npm run build:contracts && npm run build -w @sigen/api && npm run build -w @sigen/web",
     "start": "npm run start -w @sigen/api",
-    "test": "npm run test -w @sigen/api && npm run test -w @sigen/web",
-    "typecheck": "npm run typecheck -w @sigen/api && npm run typecheck -w @sigen/web",
-    "sigen:login": "npm run sigen:login -w @sigen/api",
-    "sigen:check": "npm run sigen:check -w @sigen/api",
+    "test": "npm run build:contracts && npm run test -w @sigen/api && npm run test -w @sigen/web",
+    "typecheck": "npm run build:contracts && npm run typecheck -w @sigen/api && npm run typecheck -w @sigen/web",
+    "sigen:login": "npm run build:contracts && npm run sigen:login -w @sigen/api",
+    "sigen:check": "npm run build:contracts && npm run sigen:check -w @sigen/api",
     "deploy": "bash scripts/deploy.sh",
-    "sigen:gta:check": "npm run sigen:gta:check -w @sigen/api"
+    "screenshots": "npm run build && node scripts/screenshots.mjs",
+    "sigen:gta:check": "npm run build:contracts && npm run sigen:gta:check -w @sigen/api"
   },
   "devDependencies": {
     "concurrently": "^10.0.6"

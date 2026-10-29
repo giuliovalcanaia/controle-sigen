@@ -7,7 +7,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, api } from "./api";
+import { ApiError, api, fetchInventory } from "./api";
 import {
   AssistantAvatar,
   AssistantBubble,
@@ -27,7 +27,7 @@ import { describeError, withNickname, withPhoto } from "./utils";
 type Message =
   | { id: number; role: "user"; kind: "text"; text: string }
   | { id: number; role: "assistant"; kind: "text"; text: string }
-  | { id: number; role: "assistant"; kind: "inventory"; inventory: Inventory }
+  | { id: number; role: "assistant"; kind: "inventory" }
   | { id: number; role: "assistant"; kind: "gta"; inventory: Inventory }
   | { id: number; role: "assistant"; kind: "error"; code: string; text: string };
 
@@ -40,22 +40,36 @@ const uid = () => nextId++;
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [inventory, setInventory] = useState<Inventory | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("Buscando os animais no SIGEN...");
   const [status, setStatus] = useState<SigenStatus | null>(null);
   const [editing, setEditing] = useState<Animal | null>(null);
   const [photoAnimal, setPhotoAnimal] = useState<Animal | null>(null);
-  const [gtaBusy, setGtaBusy] = useState(false);
-  const [gtaPrompt, setGtaPrompt] = useState<string | null>(null);
+  const [gtaOpening, setGtaOpening] = useState(false);
+  const [busyGtaIds, setBusyGtaIds] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+  const [gtaInput, setGtaInput] = useState<{
+    flowId: number;
+    handler: (text: string) => void;
+    prompt: string;
+  } | null>(null);
   const [activeGtaId, setActiveGtaId] = useState<number | null>(null);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const lastRequest = useRef("Ver todos os animais");
   const busy = useRef(false);
   const scrollToResult = useRef(false);
-  const inventoryRef = useRef<Inventory | null>(null);
+  const inventoryGeneration = useRef(0);
   const gtaStarting = useRef(false);
-  const gtaTextHandler = useRef<((text: string) => void) | null>(null);
+
+  // O "ocupado" é derivado dos fluxos que se declaram ocupados pelo id,
+  // não de um boolean que qualquer conversa montada pode desligar.
+  const gtaBusy = gtaOpening || busyGtaIds.size > 0;
+  // O campo de texto só obedece ao fluxo ativo.
+  const gtaPrompt =
+    gtaInput && gtaInput.flowId === activeGtaId ? gtaInput.prompt : null;
 
   useEffect(() => {
     api
@@ -101,6 +115,7 @@ export default function App() {
       if (busy.current || gtaBusy) return;
       busy.current = true;
       lastRequest.current = text;
+      const geracao = ++inventoryGeneration.current;
 
       if (!options?.refresh) {
         setMessages((previous) => [
@@ -118,16 +133,28 @@ export default function App() {
       setLoading(true);
 
       try {
-        const inventory = await api.getInventory();
-        inventoryRef.current = inventory;
+        const inventory = await fetchInventory((job) => {
+          if (geracao !== inventoryGeneration.current) return;
+          setLoadingText(
+            job.total > 0
+              ? `Lendo propriedade ${job.atual} de ${job.total}...`
+              : "Entrando no SIGEN...",
+          );
+        });
+
+        if (geracao !== inventoryGeneration.current) return;
+
+        setInventory(inventory);
         setStatus((current) =>
           current ? { ...current, state: "active" } : { state: "active", expiresInSeconds: 0 },
         );
         setMessages((previous) => [
           ...previous.filter((message) => message.kind !== "inventory"),
-          { id: uid(), role: "assistant", kind: "inventory", inventory },
+          { id: uid(), role: "assistant", kind: "inventory" },
         ]);
       } catch (error) {
+        if (geracao !== inventoryGeneration.current) return;
+
         const { code, text: message } = describeError(error);
         setMessages((previous) => [
           ...previous,
@@ -144,18 +171,45 @@ export default function App() {
     [status?.state, gtaBusy],
   );
 
-  const handleGtaBusyChange = useCallback((busy: boolean) => {
-    setGtaBusy(busy);
-    if (!busy) {
-      gtaTextHandler.current = null;
-      setGtaPrompt(null);
-    }
-  }, []);
+  const handleGtaBusyChange = useCallback(
+    (flowId: number, busy: boolean) => {
+      if (busy) setGtaOpening(false);
+
+      setBusyGtaIds((current) => {
+        const has = current.has(flowId);
+        if (has === busy) return current;
+
+        const next = new Set(current);
+        if (busy) next.add(flowId);
+        else next.delete(flowId);
+        return next;
+      });
+    },
+    [],
+  );
 
   const handleGtaTextRequest = useCallback(
-    (handler: ((text: string) => void) | null, prompt?: string) => {
-      gtaTextHandler.current = handler;
-      setGtaPrompt(handler ? prompt ?? "CPF ou CNPJ do destino" : null);
+    (
+      flowId: number,
+      handler: ((text: string) => void) | null,
+      prompt?: string,
+    ) => {
+      setGtaInput((current) => {
+        if (!handler) {
+          return current?.flowId === flowId ? null : current;
+        }
+
+        const texto = prompt ?? "CPF ou CNPJ do destino";
+        if (
+          current?.flowId === flowId &&
+          current.handler === handler &&
+          current.prompt === texto
+        ) {
+          return current;
+        }
+
+        return { flowId, handler, prompt: texto };
+      });
     },
     [],
   );
@@ -166,10 +220,11 @@ export default function App() {
       if (!options?.restart && gtaBusy) return;
 
       gtaStarting.current = true;
-      setGtaBusy(true);
-      setGtaPrompt(null);
-      gtaTextHandler.current = null;
+      setGtaOpening(true);
+      setGtaInput(null);
 
+      let created = false;
+      const geracao = inventoryGeneration.current;
       const userText = options?.userText;
       if (userText) {
         setMessages((previous) => [
@@ -179,9 +234,9 @@ export default function App() {
       }
 
       try {
-        let inventory = inventoryRef.current;
+        let atual = inventory;
 
-        if (!inventory) {
+        if (!atual) {
           setLoadingText(
             status?.state === "active"
               ? "Buscando seus animais no SIGEN..."
@@ -190,20 +245,32 @@ export default function App() {
           setLoading(true);
 
           try {
-            inventory = await api.getInventory();
-            inventoryRef.current = inventory;
+            atual = await fetchInventory((job) => {
+              if (geracao !== inventoryGeneration.current) return;
+              setLoadingText(
+                job.total > 0
+                  ? `Lendo propriedade ${job.atual} de ${job.total}...`
+                  : "Entrando no SIGEN...",
+              );
+            });
+
+            if (geracao !== inventoryGeneration.current) return;
+
+            setInventory(atual);
             setStatus((current) =>
               current
                 ? { ...current, state: "active" }
                 : { state: "active", expiresInSeconds: 0 },
             );
           } catch (error) {
+            if (geracao !== inventoryGeneration.current) return;
+
             const { code, text } = describeError(error);
             setMessages((previous) => [
               ...previous,
               { id: uid(), role: "assistant", kind: "error", code, text },
             ]);
-            setGtaBusy(false);
+            setGtaOpening(false);
             if (
               code === "SESSAO_EXPIRADA" ||
               code === "CREDENCIAIS_INVALIDAS"
@@ -216,19 +283,22 @@ export default function App() {
           }
         }
 
-        if (!inventory) return;
+        if (!atual) return;
 
         const messageId = uid();
+        created = true;
         setActiveGtaId(messageId);
         setMessages((previous) => [
           ...previous,
-          { id: messageId, role: "assistant", kind: "gta", inventory },
+          { id: messageId, role: "assistant", kind: "gta", inventory: atual },
         ]);
       } finally {
         gtaStarting.current = false;
+        // No sucesso, quem libera o "abrindo" é o efeito do novo fluxo.
+        if (!created) setGtaOpening(false);
       }
     },
-    [gtaBusy, status?.state],
+    [gtaBusy, inventory, status?.state],
   );
 
   const handleGtaRestart = useCallback(() => {
@@ -236,8 +306,9 @@ export default function App() {
   }, [startGtaFlow]);
 
   function handleSend(text: string) {
-    if (gtaTextHandler.current) {
-      gtaTextHandler.current(text);
+    const waiting = gtaInput?.flowId === activeGtaId ? gtaInput : null;
+    if (waiting) {
+      waiting.handler(text);
       return;
     }
 
@@ -286,41 +357,18 @@ export default function App() {
       throw new Error("Não consegui salvar o apelido. Tente de novo.");
     }
 
-    setMessages((previous) =>
-      previous.map((message) =>
-        message.kind === "inventory"
-          ? {
-              ...message,
-              inventory: withNickname(message.inventory, editing.key, apelido || null),
-            }
-          : message,
-      ),
+    setInventory((previous) =>
+      previous
+        ? withNickname(previous, editing.key, apelido || null)
+        : previous,
     );
-    if (inventoryRef.current) {
-      inventoryRef.current = withNickname(
-        inventoryRef.current,
-        editing.key,
-        apelido || null,
-      );
-    }
     setEditing(null);
   }
 
   const applyPhoto = useCallback((animalKey: string, fotoVersao: number | null) => {
-    setMessages((previous) =>
-      previous.map((message) =>
-        message.kind === "inventory"
-          ? { ...message, inventory: withPhoto(message.inventory, animalKey, fotoVersao) }
-          : message,
-      ),
+    setInventory((previous) =>
+      previous ? withPhoto(previous, animalKey, fotoVersao) : previous,
     );
-    if (inventoryRef.current) {
-      inventoryRef.current = withPhoto(
-        inventoryRef.current,
-        animalKey,
-        fotoVersao,
-      );
-    }
     // Mantém o diálogo aberto já com a foto nova (ou sem foto).
     setPhotoAnimal((current) =>
       current && current.key === animalKey ? { ...current, fotoVersao } : current,
@@ -369,9 +417,11 @@ export default function App() {
       setStatus({ state: "logged_out", expiresInSeconds: 0 });
       setMessages([]);
     } finally {
-      inventoryRef.current = null;
-      gtaTextHandler.current = null;
-      setGtaPrompt(null);
+      inventoryGeneration.current += 1;
+      setInventory(null);
+      setGtaInput(null);
+      setBusyGtaIds(new Set());
+      setGtaOpening(false);
       setActiveGtaId(null);
       setLogoutBusy(false);
     }
@@ -422,6 +472,7 @@ export default function App() {
               <ChatMessage
                 key={message.id}
                 message={message}
+                inventory={inventory}
                 onEdit={setEditing}
                 onPhoto={setPhotoAnimal}
                 onGtaBusy={handleGtaBusyChange}
@@ -494,6 +545,7 @@ function Welcome({ onList }: { onList: () => void }) {
 
 function ChatMessage({
   message,
+  inventory,
   onEdit,
   onPhoto,
   onGtaBusy,
@@ -505,10 +557,12 @@ function ChatMessage({
   refreshing,
 }: {
   message: Message;
+  inventory: Inventory | null;
   onEdit: (animal: Animal) => void;
   onPhoto: (animal: Animal) => void;
-  onGtaBusy: (busy: boolean) => void;
+  onGtaBusy: (flowId: number, busy: boolean) => void;
   onGtaTextRequest: (
+    flowId: number,
     handler: ((text: string) => void) | null,
     prompt?: string,
   ) => void;
@@ -523,10 +577,12 @@ function ChatMessage({
   }
 
   if (message.kind === "inventory") {
+    if (!inventory) return null;
+
     return (
       <div className="message-enter scroll-mt-6" data-inventory-message>
         <InventoryCard
-          inventory={message.inventory}
+          inventory={inventory}
           onEdit={onEdit}
           onPhoto={onPhoto}
           onRefresh={onRefresh}
@@ -539,6 +595,7 @@ function ChatMessage({
   if (message.kind === "gta") {
     return (
       <GtaChat
+        flowId={message.id}
         inventory={message.inventory}
         active={gtaActive}
         onBusyChange={onGtaBusy}

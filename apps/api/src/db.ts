@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import type { GtaStatus } from "./gta/types.js";
+import { GTA_STATUS_BLOQUEANTES, type GtaStatus } from "./gta/types.js";
 
 /**
  * Dados que são nossos, não do SIGEN: apelidos, versão das fotos e o
@@ -17,21 +17,34 @@ export type AnimalStore = {
   setPhoto(animalKey: string, bytes: number): number;
   removePhoto(animalKey: string): void;
   createGta(input: NewGta): number;
+  /**
+   * Cria a GTA só se a viagem (e os animais dela) não estiver bloqueada.
+   * A checagem e o `INSERT` acontecem na mesma transação síncrona: dois
+   * pedidos simultâneos não conseguem passar juntos.
+   */
+  criarGtaSeLivre(input: NewGta): ClaimGtaResult;
+  /** Só atualiza se a GTA ainda estiver incerta. */
+  resolverIncerteza(
+    id: number,
+    patch: { status: GtaStatus; numero: string | null; erro: string | null },
+  ): boolean;
   updateGta(id: number, patch: GtaPatch): void;
   getGta(id: number): GtaRecord | null;
   listGtas(limit: number): GtaRecord[];
-  findRecentGta(
-    hash: string,
-    statuses: GtaStatus[],
-    sinceIso: string,
-  ): GtaRecord | null;
   recoverStaleGtas(beforeIso: string, message: string): number;
   close(): void;
 };
 
+export type ClaimGtaResult =
+  | { ok: true; id: number }
+  | { ok: false; motivo: "viagem" | "animal"; existente: GtaRecord };
+
 export type NewGta = {
   status: GtaStatus;
-  hash: string;
+  /** Conferência não reserva a viagem; só a emissão bloqueia. */
+  modo: "conferir" | "emitir";
+  /** Hash da viagem: origem + animais + data de saída. */
+  identidade: string;
   origemCodigo: string;
   origemUep: string;
   destinoCodigo: string;
@@ -41,6 +54,8 @@ export type NewGta = {
   dataValidade: string;
   /** Brincos oficiais, em ordem. */
   animais: string[];
+  /** Código do último erro do job, para a UI decidir se vale retentar. */
+  codigo?: string | null;
 };
 
 export type GtaPatch = {
@@ -48,12 +63,14 @@ export type GtaPatch = {
   numero?: string | null;
   pdfPath?: string | null;
   erro?: string | null;
+  codigo?: string | null;
 };
 
 export type GtaRecord = {
   id: number;
   status: GtaStatus;
-  hash: string;
+  modo: "conferir" | "emitir";
+  identidade: string;
   origemCodigo: string;
   origemUep: string;
   destinoCodigo: string;
@@ -65,6 +82,7 @@ export type GtaRecord = {
   numero: string | null;
   pdfPath: string | null;
   erro: string | null;
+  codigo: string | null;
   criadaEm: string;
   atualizadaEm: string;
 };
@@ -72,7 +90,8 @@ export type GtaRecord = {
 type GtaRow = {
   id: number;
   status: GtaStatus;
-  hash: string;
+  modo: "conferir" | "emitir";
+  identidade: string;
   origem_codigo: string;
   origem_uep: string;
   destino_codigo: string;
@@ -84,6 +103,7 @@ type GtaRow = {
   numero: string | null;
   pdf_path: string | null;
   erro: string | null;
+  codigo: string | null;
   criada_em: string;
   atualizada_em: string;
 };
@@ -102,7 +122,8 @@ function toGta(row: GtaRow): GtaRecord {
   return {
     id: row.id,
     status: row.status,
-    hash: row.hash,
+    modo: row.modo,
+    identidade: row.identidade,
     origemCodigo: row.origem_codigo,
     origemUep: row.origem_uep,
     destinoCodigo: row.destino_codigo,
@@ -114,6 +135,7 @@ function toGta(row: GtaRow): GtaRecord {
     numero: row.numero,
     pdfPath: row.pdf_path,
     erro: row.erro,
+    codigo: row.codigo ?? null,
     criadaEm: row.criada_em,
     atualizadaEm: row.atualizada_em,
   };
@@ -153,7 +175,8 @@ export function openAnimalStore(filename: string): AnimalStore {
     CREATE TABLE IF NOT EXISTS gta_emissoes (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       status         TEXT NOT NULL,
-      hash           TEXT NOT NULL,
+      modo           TEXT NOT NULL DEFAULT 'emitir',
+      identidade     TEXT NOT NULL,
       origem_codigo  TEXT NOT NULL,
       origem_uep     TEXT NOT NULL,
       destino_codigo TEXT NOT NULL,
@@ -165,14 +188,48 @@ export function openAnimalStore(filename: string): AnimalStore {
       numero         TEXT,
       pdf_path       TEXT,
       erro           TEXT,
+      codigo         TEXT,
       criada_em      TEXT NOT NULL,
       atualizada_em  TEXT NOT NULL
     );
+  `);
 
-    CREATE INDEX IF NOT EXISTS idx_gta_hash
-      ON gta_emissoes (hash, criada_em);
+  // Bancos criados antes da política de emissão guardavam o hash da viagem
+  // numa coluna chamada `hash`. Os valores antigos não colidem com as
+  // identidades novas, mas a coluna precisa do nome do domínio.
+  const gtaColumns = db
+    .prepare("PRAGMA table_info(gta_emissoes)")
+    .all() as Array<{ name: string }>;
+  if (
+    !gtaColumns.some((column) => column.name === "identidade") &&
+    gtaColumns.some((column) => column.name === "hash")
+  ) {
+    db.exec("ALTER TABLE gta_emissoes RENAME COLUMN hash TO identidade");
+    db.exec("DROP INDEX IF EXISTS idx_gta_hash");
+  }
+
+  // Bancos antigos não distinguiam conferência de emissão. `conferida` é a
+  // única evidência de conferência que sobrou; o resto entra como emissão.
+  if (!gtaColumns.some((column) => column.name === "modo")) {
+    db.exec(
+      "ALTER TABLE gta_emissoes ADD COLUMN modo TEXT NOT NULL DEFAULT 'emitir'",
+    );
+    db.exec(
+      "UPDATE gta_emissoes SET modo = 'conferir' WHERE status = 'conferida'",
+    );
+  }
+
+  if (!gtaColumns.some((column) => column.name === "codigo")) {
+    db.exec("ALTER TABLE gta_emissoes ADD COLUMN codigo TEXT");
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_gta_identidade
+      ON gta_emissoes (identidade, criada_em);
     CREATE INDEX IF NOT EXISTS idx_gta_status
       ON gta_emissoes (status, atualizada_em);
+    CREATE INDEX IF NOT EXISTS idx_gta_data
+      ON gta_emissoes (data_saida, status);
   `);
 
   const selectNicknames = db.prepare<[], NicknameRow>(
@@ -205,9 +262,10 @@ export function openAnimalStore(filename: string): AnimalStore {
 
   const insertGta = db.prepare(
     `INSERT INTO gta_emissoes (
-       status, hash, origem_codigo, origem_uep, destino_codigo, destino_uep,
-       finalidade, data_saida, data_validade, animais, criada_em, atualizada_em
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       status, modo, identidade, origem_codigo, origem_uep, destino_codigo,
+       destino_uep, finalidade, data_saida, data_validade, animais, codigo,
+       criada_em, atualizada_em
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const selectGta = db.prepare<[number], GtaRow>(
     "SELECT * FROM gta_emissoes WHERE id = ?",
@@ -215,12 +273,77 @@ export function openAnimalStore(filename: string): AnimalStore {
   const selectGtas = db.prepare<[number], GtaRow>(
     "SELECT * FROM gta_emissoes ORDER BY id DESC LIMIT ?",
   );
+  const selectBloqueantes = db.prepare<[string, ...GtaStatus[]], GtaRow>(
+    `SELECT * FROM gta_emissoes
+     WHERE data_saida = ? AND modo = 'emitir'
+       AND status IN (${GTA_STATUS_BLOQUEANTES.map(() => "?").join(", ")})
+     ORDER BY id DESC`,
+  );
   const recoverGtas = db.prepare(
     `UPDATE gta_emissoes
-     SET status = 'incerta', erro = ?, atualizada_em = ?
+     SET status = CASE WHEN modo = 'emitir' THEN 'incerta' ELSE 'erro' END,
+         erro = CASE
+           WHEN modo = 'emitir' THEN ?
+           ELSE 'A conferência foi interrompida. Nada foi emitido.'
+         END,
+         atualizada_em = ?
      WHERE status IN ('preparando', 'preenchendo', 'salvando')
        AND atualizada_em < ?`,
   );
+  const resolveIncerteza = db.prepare(
+    `UPDATE gta_emissoes
+     SET status = ?, numero = ?, erro = ?, codigo = NULL, atualizada_em = ?
+     WHERE id = ? AND status = 'incerta'`,
+  );
+
+  function insert(input: NewGta): number {
+    const now = new Date().toISOString();
+    const result = insertGta.run(
+      input.status,
+      input.modo,
+      input.identidade,
+      input.origemCodigo,
+      input.origemUep,
+      input.destinoCodigo,
+      input.destinoUep,
+      input.finalidade,
+      input.dataSaida,
+      input.dataValidade,
+      JSON.stringify(input.animais),
+      input.codigo ?? null,
+      now,
+      now,
+    );
+    return Number(result.lastInsertRowid);
+  }
+
+  /**
+   * Checagem e inserção na mesma transação síncrona do `better-sqlite3`: o
+   * event loop não intercala outro pedido entre o `SELECT` e o `INSERT`.
+   * Chamado com `immediate`, pega o lock de escrita antes de ler.
+   */
+  const claimGta = db.transaction((input: NewGta): ClaimGtaResult => {
+    const bloqueantes = selectBloqueantes
+      .all(input.dataSaida, ...GTA_STATUS_BLOQUEANTES)
+      .map(toGta);
+
+    const mesmaViagem = bloqueantes.find(
+      (record) => record.identidade === input.identidade,
+    );
+    if (mesmaViagem) {
+      return { ok: false, motivo: "viagem", existente: mesmaViagem };
+    }
+
+    const animais = new Set(input.animais);
+    const animalSobreposto = bloqueantes.find((record) =>
+      record.animais.some((key) => animais.has(key)),
+    );
+    if (animalSobreposto) {
+      return { ok: false, motivo: "animal", existente: animalSobreposto };
+    }
+
+    return { ok: true, id: insert(input) };
+  });
 
   return {
     nicknames() {
@@ -254,22 +377,22 @@ export function openAnimalStore(filename: string): AnimalStore {
       deletePhoto.run(animalKey);
     },
     createGta(input) {
-      const now = new Date().toISOString();
-      const result = insertGta.run(
-        input.status,
-        input.hash,
-        input.origemCodigo,
-        input.origemUep,
-        input.destinoCodigo,
-        input.destinoUep,
-        input.finalidade,
-        input.dataSaida,
-        input.dataValidade,
-        JSON.stringify(input.animais),
-        now,
-        now,
+      return insert(input);
+    },
+    criarGtaSeLivre(input) {
+      // `immediate` pega o lock de escrita antes do SELECT: mesmo com dois
+      // processos no mesmo arquivo, ninguém lê antes do INSERT do outro.
+      return claimGta.immediate(input);
+    },
+    resolverIncerteza(id, patch) {
+      const result = resolveIncerteza.run(
+        patch.status,
+        patch.numero,
+        patch.erro,
+        new Date().toISOString(),
+        id,
       );
-      return Number(result.lastInsertRowid);
+      return result.changes > 0;
     },
     updateGta(id, patch) {
       const fields: string[] = [];
@@ -291,6 +414,10 @@ export function openAnimalStore(filename: string): AnimalStore {
         fields.push("erro = ?");
         values.push(patch.erro);
       }
+      if (patch.codigo !== undefined) {
+        fields.push("codigo = ?");
+        values.push(patch.codigo);
+      }
       if (fields.length === 0) return;
 
       fields.push("atualizada_em = ?");
@@ -308,18 +435,6 @@ export function openAnimalStore(filename: string): AnimalStore {
     listGtas(limit) {
       const safeLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
       return selectGtas.all(safeLimit).map(toGta);
-    },
-    findRecentGta(hash, statuses, sinceIso) {
-      if (statuses.length === 0) return null;
-      const placeholders = statuses.map(() => "?").join(", ");
-      const row = db
-        .prepare(
-          `SELECT * FROM gta_emissoes
-           WHERE hash = ? AND status IN (${placeholders}) AND criada_em >= ?
-           ORDER BY id DESC LIMIT 1`,
-        )
-        .get(hash, ...statuses, sinceIso) as GtaRow | undefined;
-      return row ? toGta(row) : null;
     },
     recoverStaleGtas(beforeIso, message) {
       const result = recoverGtas.run(message, new Date().toISOString(), beforeIso);

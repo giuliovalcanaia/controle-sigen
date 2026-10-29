@@ -26,12 +26,13 @@ export const GTA_TRANSPORTES = [
   "RODOVIÁRIO",
 ] as const;
 
-export const GTA_FINALIDADE_PADRAO = "ENGORDA";
-export const GTA_TRANSPORTE_PADRAO = "RODOVIÁRIO";
+export {
+  GTA_FINALIDADE_PADRAO,
+  GTA_MAX_DIAS_VALIDADE,
+  GTA_TRANSPORTE_PADRAO,
+  GTA_VALIDADE_DIAS,
+} from "@sigen/contracts";
 
-/** Dias somados à data de saída para a validade padrão. */
-export const GTA_VALIDADE_DIAS = 3;
-export const GTA_MAX_DIAS_VALIDADE = 30;
 export const GTA_MAX_ANIMAIS = 50;
 
 /** A tela do SIGEN só é usada para destinos dentro de SC e do tipo Propriedade. */

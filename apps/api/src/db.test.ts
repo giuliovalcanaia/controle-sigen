@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { openAnimalStore } from "./db.js";
 
@@ -5,27 +9,27 @@ describe("openAnimalStore", () => {
   it("grava, lê e remove apelidos", () => {
     const store = openAnimalStore(":memory:");
 
-    store.setNickname("076000003067836", "Mimosa");
-    store.setNickname("076000003069054", "Estrela");
+    store.setNickname("999000000067836", "Mimosa");
+    store.setNickname("999000000069054", "Estrela");
     expect(store.nicknames()).toEqual(
       new Map([
-        ["076000003067836", "Mimosa"],
-        ["076000003069054", "Estrela"],
+        ["999000000067836", "Mimosa"],
+        ["999000000069054", "Estrela"],
       ]),
     );
 
-    store.setNickname("076000003067836", "Mimosinha");
-    expect(store.nicknames().get("076000003067836")).toBe("Mimosinha");
+    store.setNickname("999000000067836", "Mimosinha");
+    expect(store.nicknames().get("999000000067836")).toBe("Mimosinha");
 
-    store.removeNickname("076000003069054");
-    expect(store.nicknames().has("076000003069054")).toBe(false);
+    store.removeNickname("999000000069054");
+    expect(store.nicknames().has("999000000069054")).toBe(false);
 
     store.close();
   });
 
   it("guarda a versão da foto e sempre avança", () => {
     const store = openAnimalStore(":memory:");
-    const chave = "076000003067836";
+    const chave = "999000000067836";
 
     expect(store.photoVersion(chave)).toBeNull();
 
@@ -49,22 +53,23 @@ describe("openAnimalStore", () => {
 
     const id = store.createGta({
       status: "preparando",
-      hash: "abc123",
-      origemCodigo: "42-000165623",
+      modo: "emitir",
+      identidade: "viagem-1",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000261071",
+      destinoCodigo: "42-900000002",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836", "076000003069054"],
+      animais: ["999000000067836", "999000000069054"],
     });
 
     const created = store.getGta(id);
     expect(created?.status).toBe("preparando");
     expect(created?.animais).toEqual([
-      "076000003067836",
-      "076000003069054",
+      "999000000067836",
+      "999000000069054",
     ]);
     expect(created?.numero).toBeNull();
 
@@ -83,43 +88,223 @@ describe("openAnimalStore", () => {
     store.close();
   });
 
-  it("encontra GTA recente por hash e status", () => {
+  it("reserva a viagem uma vez e devolve o registro que bloqueou", () => {
     const store = openAnimalStore(":memory:");
-    const id = store.createGta({
-      status: "emitida",
-      hash: "hash",
-      origemCodigo: "42-000165623",
+    const viagem = {
+      status: "preparando" as const,
+      modo: "emitir" as const,
+      identidade: "viagem-1",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000261071",
+      destinoCodigo: "42-900000002",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836"],
-    });
-    store.updateGta(id, { numero: "000 1" });
+      animais: ["999000000067836"],
+    };
 
-    const since = new Date(Date.now() - 60_000).toISOString();
-    expect(store.findRecentGta("hash", ["emitida"], since)?.id).toBe(id);
-    expect(store.findRecentGta("hash", ["preparando"], since)).toBeNull();
-    expect(store.findRecentGta("outro", ["emitida"], since)).toBeNull();
+    const first = store.criarGtaSeLivre(viagem);
+    expect(first.ok).toBe(true);
+
+    const second = store.criarGtaSeLivre(viagem);
+    expect(second).toMatchObject({
+      ok: false,
+      motivo: "viagem",
+      existente: { identidade: "viagem-1" },
+    });
+
+    if (!first.ok) throw new Error("a primeira reserva deveria passar");
+    store.updateGta(first.id, { status: "nao_emitida" });
+    expect(store.criarGtaSeLivre(viagem).ok).toBe(true);
 
     store.close();
+  });
+
+  it("bloqueia animal que já está em outra GTA do mesmo dia", () => {
+    const store = openAnimalStore(":memory:");
+    store.createGta({
+      status: "emitida",
+      modo: "emitir",
+      identidade: "outra-viagem",
+      origemCodigo: "42-900000001",
+      origemUep: "1",
+      destinoCodigo: "42-900000002",
+      destinoUep: "1",
+      finalidade: "ENGORDA",
+      dataSaida: "2026-10-25",
+      dataValidade: "2026-10-28",
+      animais: ["999000000067836"],
+    });
+
+    const sobreposta = store.criarGtaSeLivre({
+      status: "preparando",
+      modo: "emitir",
+      identidade: "viagem-2",
+      origemCodigo: "42-900000001",
+      origemUep: "1",
+      destinoCodigo: "42-900000004",
+      destinoUep: "1",
+      finalidade: "ENGORDA",
+      dataSaida: "2026-10-25",
+      dataValidade: "2026-10-28",
+      animais: ["999000000067836", "999000000069054"],
+    });
+    expect(sobreposta).toMatchObject({
+      ok: false,
+      motivo: "animal",
+      existente: { identidade: "outra-viagem" },
+    });
+
+    const outroDia = store.criarGtaSeLivre({
+      status: "preparando",
+      modo: "emitir",
+      identidade: "viagem-3",
+      origemCodigo: "42-900000001",
+      origemUep: "1",
+      destinoCodigo: "42-900000004",
+      destinoUep: "1",
+      finalidade: "ENGORDA",
+      dataSaida: "2026-10-26",
+      dataValidade: "2026-10-29",
+      animais: ["999000000067836"],
+    });
+    expect(outroDia.ok).toBe(true);
+
+    store.close();
+  });
+
+  it("não bloqueia viagem cuja tentativa terminou em erro", () => {
+    const store = openAnimalStore(":memory:");
+    const base = {
+      status: "erro" as const,
+      modo: "emitir" as const,
+      identidade: "viagem-1",
+      origemCodigo: "42-900000001",
+      origemUep: "1",
+      destinoCodigo: "42-900000002",
+      destinoUep: "1",
+      finalidade: "ENGORDA",
+      dataSaida: "2026-10-25",
+      dataValidade: "2026-10-28",
+      animais: ["999000000067836"],
+    };
+
+    store.createGta(base);
+    expect(store.criarGtaSeLivre({ ...base, status: "preparando" }).ok).toBe(
+      true,
+    );
+
+    store.close();
+  });
+
+  it("conferência não bloqueia a emissão da mesma viagem", () => {
+    const store = openAnimalStore(":memory:");
+    const base = {
+      status: "preparando" as const,
+      modo: "emitir" as const,
+      identidade: "viagem-1",
+      origemCodigo: "42-900000001",
+      origemUep: "1",
+      destinoCodigo: "42-900000002",
+      destinoUep: "1",
+      finalidade: "ENGORDA",
+      dataSaida: "2026-10-25",
+      dataValidade: "2026-10-28",
+      animais: ["999000000067836"],
+    };
+
+    store.createGta({ ...base, modo: "conferir" });
+    expect(store.criarGtaSeLivre(base).ok).toBe(true);
+
+    store.close();
+  });
+
+  it("recupera conferência interrompida como erro, não como incerta", () => {
+    const store = openAnimalStore(":memory:");
+    const id = store.createGta({
+      status: "preparando",
+      modo: "conferir",
+      identidade: "viagem-1",
+      origemCodigo: "42-900000001",
+      origemUep: "1",
+      destinoCodigo: "42-900000002",
+      destinoUep: "1",
+      finalidade: "ENGORDA",
+      dataSaida: "2026-10-25",
+      dataValidade: "2026-10-28",
+      animais: ["999000000067836"],
+    });
+
+    store.recoverStaleGtas(
+      new Date(Date.now() + 1000).toISOString(),
+      "Interrompido.",
+    );
+
+    const recovered = store.getGta(id);
+    expect(recovered?.status).toBe("erro");
+    expect(recovered?.erro).toContain("Nada foi emitido");
+
+    store.close();
+  });
+
+  it("migra banco antigo de hash para identidade e modo", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sigen-db-"));
+    const file = path.join(dir, "sigen.db");
+    const legacy = new Database(file);
+    legacy.exec(`
+      CREATE TABLE gta_emissoes (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        status         TEXT NOT NULL,
+        hash           TEXT NOT NULL,
+        origem_codigo  TEXT NOT NULL,
+        origem_uep     TEXT NOT NULL,
+        destino_codigo TEXT NOT NULL,
+        destino_uep    TEXT NOT NULL,
+        finalidade     TEXT NOT NULL,
+        data_saida     TEXT NOT NULL,
+        data_validade  TEXT NOT NULL,
+        animais        TEXT NOT NULL,
+        numero         TEXT,
+        pdf_path       TEXT,
+        erro           TEXT,
+        criada_em      TEXT NOT NULL,
+        atualizada_em  TEXT NOT NULL
+      );
+      INSERT INTO gta_emissoes (
+        status, hash, origem_codigo, origem_uep, destino_codigo, destino_uep,
+        finalidade, data_saida, data_validade, animais, criada_em, atualizada_em
+      ) VALUES (
+        'emitida', 'hash-antigo', '42-900000001', '1', '42-900000002', '1',
+        'ENGORDA', '2026-10-25', '2026-10-28', '["999000000067836"]',
+        '2026-10-25T10:00:00.000Z', '2026-10-25T10:01:00.000Z'
+      );
+    `);
+    legacy.close();
+
+    const store = openAnimalStore(file);
+    const record = store.getGta(1);
+    expect(record?.identidade).toBe("hash-antigo");
+    expect(record?.modo).toBe("emitir");
+    expect(record?.codigo).toBeNull();
+    store.close();
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   it("recupera GTA travada como incerta", () => {
     const store = openAnimalStore(":memory:");
     const id = store.createGta({
       status: "salvando",
-      hash: "hash",
-      origemCodigo: "42-000165623",
+      modo: "emitir",
+      identidade: "viagem-1",
+      origemCodigo: "42-900000001",
       origemUep: "1",
-      destinoCodigo: "42-000261071",
+      destinoCodigo: "42-900000002",
       destinoUep: "1",
       finalidade: "ENGORDA",
       dataSaida: "2026-10-25",
       dataValidade: "2026-10-28",
-      animais: ["076000003067836"],
+      animais: ["999000000067836"],
     });
 
     const changed = store.recoverStaleGtas(

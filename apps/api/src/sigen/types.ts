@@ -1,44 +1,12 @@
-export type Sexo = "Fêmea" | "Macho";
+import type {
+  Animal,
+  Inventory,
+  PropertyInventory,
+  Sexo,
+  SigenStatus,
+} from "@sigen/contracts";
 
-export type Animal = {
-  /** Nº Brinco oficial (15 dígitos). Chave estável do apelido. */
-  key: string;
-  /** Nº Manejo (6 dígitos). É o número que o produtor chama de "brinco". */
-  brinco: string;
-  brincoOficial: string;
-  /** Nº da UEP de onde o animal veio (ex.: "1"). */
-  uep?: string;
-  sexo: Sexo;
-  idade: {
-    anos: number;
-    meses: number;
-  };
-  nascimento: string;
-  apelido: string | null;
-  /** Versão da foto guardada no servidor (epoch ms) ou null se não houver. */
-  fotoVersao: number | null;
-};
-
-export type PropertyInventory = {
-  codigo: string;
-  localidade: string;
-  municipio: string;
-  uf: string;
-  ueps: string[];
-  animais: Animal[];
-};
-
-export type Inventory = {
-  buscadoEm: string;
-  total: number;
-  propriedades: PropertyInventory[];
-  avisos: string[];
-};
-
-export type SigenStatus = {
-  state: "logged_out" | "logging_in" | "active";
-  expiresInSeconds: number;
-};
+export type { Animal, Inventory, PropertyInventory, Sexo, SigenStatus };
 
 export type ParsedInventory = {
   codigoOficial: string;
@@ -73,19 +41,34 @@ export type ErrorCode =
   | "GTA_SIGEN_RECUSOU"
   | "GTA_EM_ANDAMENTO"
   | "GTA_JA_EMITIDA"
+  | "GTA_ANIMAL_JA_SAIU"
   | "GTA_INCERTA"
+  | "GTA_NAO_INCERTA"
+  | "GTA_NAO_ENCONTRADA"
   | "GTA_NAO_CONFIRMADA"
   | "GTA_INDISPONIVEL";
+
+export type SigenErrorDetails = {
+  /** Registro que bloqueou a emissão, para a UI abrir a conferência. */
+  gtaId?: number;
+};
 
 export class SigenError extends Error {
   readonly code: ErrorCode;
   readonly statusCode: number;
+  readonly detalhe?: SigenErrorDetails;
 
-  constructor(code: ErrorCode, message: string, statusCode = 502) {
+  constructor(
+    code: ErrorCode,
+    message: string,
+    statusCode = 502,
+    detalhe?: SigenErrorDetails,
+  ) {
     super(message);
     this.name = "SigenError";
     this.code = code;
     this.statusCode = statusCode;
+    this.detalhe = detalhe;
   }
 }
 

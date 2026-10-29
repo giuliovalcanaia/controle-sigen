@@ -1,6 +1,6 @@
                                                                         Estado de Santa Catarina
                                                                         Secretaria de Estado da Agricultura                                                                                              Página 1/1
-                                                                        Companhia Integrada de Desenvolvimento Agrícola de Santa Catarina                                                       24/10/2026 16:56:04
+                                                                        Companhia Integrada de Desenvolvimento Agrícola de Santa Catarina                                                       24/10/2026 16:56:28
 
                                                                                                                       INVENTÁRIO DE ANIMAIS
 
@@ -9,14 +9,14 @@
 
 SIGEN+ Sistema de Gestão da Defesa Agropecuária Catarinense
                                                               Nome Unidade Exploração: NOME
-                                                              Código Oficial: 42-000165623                                 Nº UEP: 1
-                                                              Proprietário titular do imóvel: NOME            CPF/CNPJ: 00000000000
-                                                              Tel. Residencial: (00) 00000-0000                             Tel. Celular: (00) 00000-0000
+                                                              Código Oficial: 42-900000004                                 Nº UEP: 1
+                                                              Proprietário titular do imóvel: NOME        CPF/CNPJ: 00000000000
+                                                              Tel. Residencial: Não Informado                              Tel. Celular: (00) 00000-0000
                                                               Responsável: NOME                               CPF/CNPJ: 00000000000
-                                                              Local: Propriedade                                           Tipo Endereço: Estrada
-                                                              Endereço: ENDERECO                                      Nº: Não Informado
-                                                              CEP: 00000000                                                Localidade: Capivari - Doutor Pedrinho - SC
-                                                              Local de Leitura do GPS: Sede                                Altitude: 536
+                                                              Local: Propriedade                                           Tipo Endereço: Chácara
+                                                              Endereço: ENDERECO                       Nº: Não Informado
+                                                              CEP: 00000000                                                Localidade: Alto da Serra - Vale do Cedro - SC
+                                                              Local de Leitura do GPS: Porteira da Propriedade             Altitude: 750
                                                               Latitude: 00,000000
                                                               Espécie: BOVINO
 
@@ -24,25 +24,29 @@ SIGEN+ Sistema de Gestão da Defesa Agropecuária Catarinense
                                                               Produtores
                                                               Nome: NOME                 CPF/CNPJ: 00000000000          Tel. Residencial: (00) 00000-0000         Tel. Celular: (00) 00000-0000
                                                               Nome: NOME                       CPF/CNPJ: 00000000000          Tel. Residencial: (00) 00000-0000        Tel. Celular: (00) 00000-0000
+                                                              Nome: NOME                      CPF/CNPJ: 00000000000          Tel. Residencial: (00) 00000-0000         Tel. Celular: (00) 00000-0000
+                                                              Nome: NOME                   CPF/CNPJ: 00000000000          Tel. Residencial: Não Informado         Tel. Celular: (00) 00000-0000
 
                                                               Estratificação
                                                                                                                                                                   Idade
                                                                       Nº Brinco                     Nº Manejo                         Sexo                                                 Data de Nascimento
                                                                                                                                                              Anos      Meses
-                                                                   076000003067836                    067836                          Fêmea                     0              8                 17/02/2026
+                                                                   999000000067829                    067829                          Macho                     2              3                 20/07/2024
 
-                                                                   076000003069054                    069054                          Fêmea                     2              5                 03/05/2024
+                                                                   999000000068975                    068975                          Fêmea                     2              2                 14/08/2024
 
-                                                                   105420236855019                    685501                          Fêmea                     8              4                 17/06/2018
+                                                                   999000000233742                    233742                          Fêmea                     4              4                 22/06/2022
 
-                                                                   076000009702664                    702664                          Macho                     0              1                 05/09/2026
+                                                                   999000000341991                    341991                          Fêmea                    13              0                 04/10/2013
+
+                                                                   999000000729579                    729579                          Fêmea                     6              9                 27/12/2019
 
 
 
                                                               Total Geral
                                                                     0 a 12 meses            13 a 24 meses             25 a 36 meses         acima de 36 meses                 Total                Qtde. Animais
                                                                M           F            M           F             M           F            M         F              M            F
-                                                                         1          1            0            0            0           1           0          1                1            3                         4
+                                                                         0          0            0            0            1           1           0          3                1            4                         5
 
 
 

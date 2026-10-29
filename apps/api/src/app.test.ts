@@ -6,10 +6,11 @@ import { buildApp } from "./app.js";
 import { openAnimalStore, type AnimalStore } from "./db.js";
 import { createMockGtaService } from "./gta/mock.js";
 import { addDaysIso, todayIso } from "./gta/schema.js";
+import { createInventoryService } from "./inventory.js";
 import { openPhotoStore, type PhotoStore } from "./photos.js";
 import { getMockInventory } from "./sigen/mock.js";
 
-const ANIMAL_KEY = "076000003067836";
+const ANIMAL_KEY = "999000000067836";
 
 let app: Awaited<ReturnType<typeof buildApp>> | null = null;
 let store: AnimalStore | null = null;
@@ -27,7 +28,9 @@ async function setup() {
   photos = openPhotoStore(photosDir, store);
   app = await buildApp(
     {
-      inventory: { getInventory: async () => getMockInventory() },
+      inventory: createInventoryService({
+        load: async () => getMockInventory(),
+      }),
       store,
       photos,
       gta: createMockGtaService(store),
@@ -37,6 +40,25 @@ async function setup() {
     { webDist: "/caminho/que-nao-existe", logger: false },
   );
   return app;
+}
+
+async function listar(server: Awaited<ReturnType<typeof buildApp>>) {
+  const start = await server.inject({ method: "POST", url: "/api/inventario" });
+  expect(start.statusCode).toBe(202);
+  const { id } = start.json();
+
+  for (let tentativa = 0; tentativa < 50; tentativa += 1) {
+    const response = await server.inject({
+      method: "GET",
+      url: `/api/inventario/${id}`,
+    });
+    const job = response.json();
+    if (job.status === "pronto") return job.inventario;
+    if (job.status === "erro") throw new Error(job.erro);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  throw new Error("A consulta do inventário não terminou.");
 }
 
 afterEach(async () => {
@@ -50,23 +72,39 @@ afterEach(async () => {
 });
 
 describe("API", () => {
-  it("devolve o inventário com as quatro propriedades", async () => {
+  it("entrega o inventário por job, com as quatro propriedades", async () => {
     const server = await setup();
-    const response = await server.inject({ method: "GET", url: "/api/animals" });
+    const body = await listar(server);
 
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["cache-control"]).toBe("no-store");
-    const body = response.json();
     expect(body.total).toBe(12);
     expect(body.propriedades).toHaveLength(4);
-    expect(body.propriedades.find((p: { codigo: string }) => p.codigo === "42-000261676").animais).toHaveLength(0);
+    expect(
+      body.propriedades.find(
+        (p: { codigo: string }) => p.codigo === "42-900000003",
+      ).animais,
+    ).toHaveLength(0);
 
     const animais = body.propriedades.flatMap(
-      (property: { animais: Array<{ fotoVersao: number | null }> }) => property.animais,
+      (property: { animais: Array<{ fotoVersao: number | null }> }) =>
+        property.animais,
     );
-    expect(animais.every((animal: { fotoVersao: number | null }) => animal.fotoVersao === null)).toBe(
-      true,
-    );
+    expect(
+      animais.every(
+        (animal: { fotoVersao: number | null }) =>
+          animal.fotoVersao === null,
+      ),
+    ).toBe(true);
+  });
+
+  it("recusa consulta de inventário desconhecida", async () => {
+    const server = await setup();
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/inventario/999",
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json().code).toBe("NAO_ENCONTRADO");
   });
 
   it("grava, retorna e remove apelido", async () => {
@@ -79,10 +117,12 @@ describe("API", () => {
     });
     expect(saved.statusCode).toBe(200);
 
-    const list = await server.inject({ method: "GET", url: "/api/animals" });
-    const animals = list
-      .json()
-      .propriedades.flatMap((property: { animais: Array<{ key: string; apelido: string | null }> }) => property.animais);
+    const inventory = await listar(server);
+    const animals = inventory.propriedades.flatMap(
+      (property: {
+        animais: Array<{ key: string; apelido: string | null }>;
+      }) => property.animais,
+    );
     expect(animals.find((animal: { key: string }) => animal.key === ANIMAL_KEY).apelido).toBe(
       "Mimosa",
     );
@@ -134,10 +174,13 @@ describe("API", () => {
     expect(got.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
     expect(got.rawPayload.equals(image)).toBe(true);
 
-    const list = await server.inject({ method: "GET", url: "/api/animals" });
-    const animal = list
-      .json()
-      .propriedades.flatMap((property: { animais: Array<{ key: string; fotoVersao: number | null }> }) => property.animais)
+    const inventory = await listar(server);
+    const animal = inventory.propriedades
+      .flatMap(
+        (property: {
+          animais: Array<{ key: string; fotoVersao: number | null }>;
+        }) => property.animais,
+      )
       .find((item: { key: string }) => item.key === ANIMAL_KEY);
     expect(animal.fotoVersao).toBe(fotoVersao);
 
@@ -212,8 +255,8 @@ describe("API", () => {
 
 describe("GTA", () => {
   const gta = () => ({
-    origem: { codigoOficial: "42-000165623", uep: "1" },
-    destino: { tipo: "propria" as const, codigoOficial: "42-000261071", uep: "1" },
+    origem: { codigoOficial: "42-900000001", uep: "1" },
+    destino: { tipo: "propria" as const, codigoOficial: "42-900000002", uep: "1" },
     animais: [{ key: ANIMAL_KEY, brinco: "067836" }],
     finalidade: "ENGORDA",
     dataSaida: todayIso(),
@@ -293,7 +336,7 @@ describe("GTA", () => {
   it("recusa animal que não está na propriedade", async () => {
     const server = await setup();
     const payload = gta();
-    payload.animais = [{ key: "076000000233768", brinco: "233768" }];
+    payload.animais = [{ key: "999000000233768", brinco: "233768" }];
 
     const response = await server.inject({
       method: "POST",
@@ -315,5 +358,140 @@ describe("GTA", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().code).toBe("DADOS_INVALIDOS");
+  });
+
+  it("não emite a mesma viagem duas vezes", async () => {
+    const server = await setup();
+    const first = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: gta(), modo: "emitir" },
+    });
+    await waitForJob(server, first.json().id);
+
+    const second = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: { ...gta(), placa: "XYZ9Z99" }, modo: "emitir" },
+    });
+
+    expect(second.statusCode).toBe(409);
+    expect(second.json().code).toBe("GTA_JA_EMITIDA");
+  });
+
+  it("devolve a GTA incerta que está bloqueando a viagem", async () => {
+    const server = await setup();
+    const first = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: gta(), modo: "emitir" },
+    });
+    const job = await waitForJob(server, first.json().id);
+    store!.updateGta(job.id, { status: "incerta" });
+
+    const blocked = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: gta(), modo: "emitir" },
+    });
+
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json()).toMatchObject({
+      code: "GTA_INCERTA",
+      detalhe: { gtaId: job.id },
+    });
+  });
+
+  it("bloqueia animal que já saiu em outra GTA do mesmo dia", async () => {
+    const server = await setup();
+    const property = getMockInventory().propriedades.find(
+      (item) => item.codigo === "42-900000001",
+    )!;
+    const primeiro = property.animais[0]!;
+    const segundo = property.animais[1]!;
+
+    const first = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: {
+        gta: {
+          ...gta(),
+          animais: [{ key: primeiro.key, brinco: primeiro.brinco }],
+        },
+        modo: "emitir",
+      },
+    });
+    await waitForJob(server, first.json().id);
+
+    const overlap = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: {
+        gta: {
+          ...gta(),
+          animais: [
+            { key: primeiro.key, brinco: primeiro.brinco },
+            { key: segundo.key, brinco: segundo.brinco },
+          ],
+        },
+        modo: "emitir",
+      },
+    });
+
+    expect(overlap.statusCode).toBe(409);
+    expect(overlap.json().code).toBe("GTA_ANIMAL_JA_SAIU");
+  });
+
+  it("conferir pode repetir a mesma viagem", async () => {
+    const server = await setup();
+
+    const first = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: gta(), modo: "conferir" },
+    });
+    const second = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: gta(), modo: "conferir" },
+    });
+
+    expect(first.statusCode).toBe(202);
+    expect(second.statusCode).toBe(202);
+    await waitForJob(server, first.json().id);
+    await waitForJob(server, second.json().id);
+  });
+
+  it("só aceita conferência de GTA incerta existente", async () => {
+    const server = await setup();
+    const emitida = await server.inject({
+      method: "POST",
+      url: "/api/gta",
+      payload: { gta: gta(), modo: "emitir" },
+    });
+    const job = await waitForJob(server, emitida.json().id);
+
+    const naoIncerta = await server.inject({
+      method: "POST",
+      url: `/api/gta/${job.id}/conferencia`,
+      payload: { resultado: "emitida" },
+    });
+    expect(naoIncerta.statusCode).toBe(409);
+    expect(naoIncerta.json().code).toBe("GTA_NAO_INCERTA");
+
+    const inexistente = await server.inject({
+      method: "POST",
+      url: "/api/gta/999/conferencia",
+      payload: { resultado: "nao_emitida" },
+    });
+    expect(inexistente.statusCode).toBe(404);
+    expect(inexistente.json().code).toBe("GTA_NAO_ENCONTRADA");
+
+    const invalido = await server.inject({
+      method: "POST",
+      url: `/api/gta/${job.id}/conferencia`,
+      payload: { resultado: "talvez" },
+    });
+    expect(invalido.statusCode).toBe(400);
   });
 });
