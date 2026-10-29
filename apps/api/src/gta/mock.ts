@@ -22,7 +22,13 @@ import type {
  * Emissão simulada para desenvolver a interface sem SIGEN.
  * Preenche o banco igual ao serviço real, mas conclui com um número falso.
  */
-export function createMockGtaService(store: AnimalStore): GtaService {
+export function createMockGtaService(
+  store: AnimalStore,
+  options: { emissaoAtiva?: boolean } = {},
+): GtaService {
+  // O mock respeita a mesma chave do serviço real: com a emissão desligada,
+  // a interface mostra "Conferir no SIGEN" e nunca oferece o salvamento.
+  const emissaoAtiva = options.emissaoAtiva ?? true;
   const progress = new Map<number, GtaProgresso>();
   const emissao = createEmissao(store);
 
@@ -62,7 +68,7 @@ export function createMockGtaService(store: AnimalStore): GtaService {
         validadePadrao: addDaysIso(hoje, GTA_VALIDADE_DIAS),
         maxAnimais: GTA_MAX_ANIMAIS,
         uf: GTA_UF,
-        emissaoAtiva: true,
+        emissaoAtiva,
       };
     },
 

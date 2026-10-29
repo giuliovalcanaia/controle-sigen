@@ -21,6 +21,7 @@
     "sigen:login": "npm run build:contracts && npm run sigen:login -w @sigen/api",
     "sigen:check": "npm run build:contracts && npm run sigen:check -w @sigen/api",
     "deploy": "bash scripts/deploy.sh",
+    "screenshots": "npm run build && node scripts/screenshots.mjs",
     "sigen:gta:check": "npm run build:contracts && npm run sigen:gta:check -w @sigen/api"
   },
   "devDependencies": {

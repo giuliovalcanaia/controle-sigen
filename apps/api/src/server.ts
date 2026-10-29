@@ -26,7 +26,9 @@ if (config.mock) {
   inventory = createInventoryService({
     load: async () => getMockInventory(),
   });
-  gta = createMockGtaService(store);
+  gta = createMockGtaService(store, {
+    emissaoAtiva: config.gta.emissaoAtiva,
+  });
   getStatus = () => ({ state: "active", expiresInSeconds: 0 });
   logout = async () => undefined;
 } else {
