@@ -1,7 +1,13 @@
-import { AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Share2 } from "lucide-react";
 import { api } from "../../api";
 import { resultadoDaGta } from "../../gtaFlow";
 import type { GtaStepProps } from "./types";
+
+/** Nome amigável do arquivo compartilhado: GTA-AA-43919.pdf */
+function nomeDoPdf(numero: string | null, id: number): string {
+  return `GTA-${(numero ?? String(id)).replace(/[^\w.-]+/g, "-")}.pdf`;
+}
 
 export function ResultStep({
   state,
@@ -16,6 +22,55 @@ export function ResultStep({
     !incerta &&
     Boolean(origin && state.destino);
   const job = state.job;
+
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const pdfDisponivel = status === "emitida" && Boolean(job?.temPdf);
+
+  // Pré-carrega o PDF para compartilhar dentro do gesto do toque: no iOS o
+  // `navigator.share` precisa ser chamado antes de qualquer espera.
+  useEffect(() => {
+    if (!pdfDisponivel || !job) {
+      setPdfFile(null);
+      return;
+    }
+
+    let ativo = true;
+    const nome = nomeDoPdf(job.numero, job.id);
+
+    fetch(api.gtaPdfUrl(job.id))
+      .then((response) => (response.ok ? response.blob() : null))
+      .then((blob) => {
+        if (!ativo || !blob || typeof File === "undefined") return;
+        const file = new File([blob], nome, { type: "application/pdf" });
+        if (
+          typeof navigator.canShare === "function" &&
+          navigator.canShare({ files: [file] })
+        ) {
+          setPdfFile(file);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      ativo = false;
+    };
+  }, [pdfDisponivel, job?.id, job?.numero]);
+
+  function compartilharPdf() {
+    if (!job) return;
+
+    if (pdfFile && typeof navigator.share === "function") {
+      void navigator
+        .share({ files: [pdfFile], title: `GTA ${job.numero ?? job.id}` })
+        .catch((error) => {
+          // Cancelar o compartilhamento não é erro.
+          if (error instanceof DOMException && error.name === "AbortError") return;
+        });
+      return;
+    }
+
+    window.open(api.gtaPdfUrl(job.id), "_blank", "noopener,noreferrer");
+  }
 
   return (
     <div className="flex flex-col items-center py-2 text-center">
@@ -77,15 +132,31 @@ export function ResultStep({
       )}
 
       {status === "emitida" && job?.temPdf && job && (
-        <a
-          href={api.gtaPdfUrl(job.id)}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-forest-700 px-4 text-sm font-extrabold text-white"
-        >
-          <ExternalLink className="h-4 w-4" />
-          Abrir GTA (PDF)
-        </a>
+        <div className="mt-3 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={compartilharPdf}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-forest-700 px-4 text-sm font-extrabold text-white"
+          >
+            {pdfFile ? (
+              <Share2 className="h-4 w-4" />
+            ) : (
+              <ExternalLink className="h-4 w-4" />
+            )}
+            {pdfFile ? "Compartilhar GTA (PDF)" : "Abrir GTA (PDF)"}
+          </button>
+
+          {pdfFile && (
+            <a
+              href={api.gtaPdfUrl(job.id)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs font-bold text-forest-700 underline"
+            >
+              Abrir no navegador
+            </a>
+          )}
+        </div>
       )}
 
       {status === "emitida" && !job?.temPdf && (
