@@ -44,6 +44,9 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
+        // Sem isto, abrir `/api/gta/<id>/pdf` em uma aba nova (navegação)
+        // cairia no index.html cacheado e mostraria o app em vez do PDF.
+        navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         // Nenhuma resposta da API é cacheada: o SIGEN é a fonte da verdade.
         runtimeCaching: [],
