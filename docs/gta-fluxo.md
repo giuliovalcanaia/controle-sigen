@@ -66,7 +66,7 @@ Nenhum dado pessoal real aparece aqui. Os exemplos usam códigos genéricos.
 
 | Endpoint | Método | Uso |
 |---|---|---|
-| `/DSA.Cadastros/UnidadeExploracao/QuickSearch` | **POST** (form) | busca UEPs por CPF/CNPJ |
+| `/DSA.Cadastros/UnidadeExploracao/QuickSearch` | **POST** (JSON) | busca UEPs por CPF/CNPJ |
 | `/DSA.Tabelas/FinalidadeGta/ListaFinalidadesMotivoSaida` | GET | opções de finalidade |
 | `/DSA.Distribuicao/Brinco/ListaAnimaisEmCampo` | GET | busca animal por manejo |
 | `/DSA.Areas.Movimentacao/SaidaAnimais/VerificarPermissaoApoio` | POST JSON | requisitos extras |
@@ -90,7 +90,10 @@ Nenhum dado pessoal real aparece aqui. Os exemplos usam códigos genéricos.
 - Depois do `Add`, qualquer falha ambígua vira `incerta`; o app nunca repete o
   salvamento sozinho. A viagem fica bloqueada até o produtor responder no app
   se a GTA foi emitida.
-- O endpoint `QuickSearch` é POST. Um GET devolve 404 em HTML.
+- O endpoint `QuickSearch` é POST com **JSON** e os mesmos parâmetros do combo
+  de destino (`tipoPropriedade: "TR"`, `paramTipoGta: "NO"`, `dtSaida` sem
+  fuso). Com o formulário antigo o SIGEN responde `data: []` mesmo quando o
+  CPF tem UEPs. Um GET devolve 404 em HTML.
 
 ## Verificação somente leitura
 
