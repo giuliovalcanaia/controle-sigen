@@ -125,29 +125,30 @@ export class SigenClient {
     cpf: string,
     dataSaida: string,
   ): Promise<GtaDestinoUep[]> {
-    const dtSaida = new Date(`${dataSaida}T00:00:00-03:00`).toISOString();
-
     return this.session.withContext(async (context) => {
       const response = await context.request.post(
         `${this.baseUrl}${UEP_QUICK_SEARCH_PATH}`,
         {
-          form: {
-            fitroHabilitacao: "False",
-            filtroEvento: "",
-            listarExcluidas: "False",
+          // JSON com os mesmos parâmetros que o combo de destino da tela de
+          // GTA envia. O formulário antigo (`paramTipoGta=S`, datas em ISO com
+          // fuso) volta com `data: []`, mesmo para um CPF que tem UEPs.
+          data: {
+            fitroHabilitacao: "True",
+            filtroEvento: "True",
+            listarExcluidas: "",
             idEspecieFiltro: "",
-            idGrupoEspecie: "",
-            tipoPropriedade: "",
-            dtSaida,
+            idGrupoEspecie: null,
+            tipoPropriedade: "TR",
+            dtSaida: `${dataSaida}T00:00:00`,
             idMunicipioFiltro: "",
             idOficialPropriedade: "",
             flTek: "",
             listarTodas: "",
-            filtroForaDoEstado: "",
+            filtroForaDoEstado: null,
             listarProdutor: "True",
             bloqueiCodigoOficial: "",
-            idPessoaAutorizada: "",
-            paramTipoGta: "S",
+            idPessoaAutorizada: null,
+            paramTipoGta: "NO",
             query: cpf,
           },
           headers: {
